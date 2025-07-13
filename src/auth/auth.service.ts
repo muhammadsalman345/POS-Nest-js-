@@ -11,6 +11,7 @@ import { JwtPayload } from './interfaces/jwt-payload.interface'; // JwtPayload i
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { Role } from 'src/common/enums/role.enum';
+import { ApiResponse } from 'src/common/dto/response.dto';
 
 @Injectable()
 export class AuthService {
@@ -43,42 +44,57 @@ export class AuthService {
     return this.usersRepository.save(newUser);
   }
 
-  // <--- SIGN-IN METHOD MEIN AHEM TABDEELI --->
-  async signIn(signinDto: SigninDto): Promise<{ accessToken: string, redirectPath: string }> { // Response type mein redirectPath shamil kiya
-    const { email, password } = signinDto;
+ async signIn(signinDto: SigninDto): Promise<ApiResponse<any>> {
+  const { email, password } = signinDto;
 
-    const user = await this.usersRepository.findOne({ where: { email } });
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials.');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials.');
-    }
-
-    // New: Check if user is active
-    if (!user.isActive) {
-      throw new UnauthorizedException('Your account is inactive. Please contact support.');
-    }
-
-    // Payload for JWT (isme role aur isActive shamil kiya)
-    const payload: JwtPayload = { email: user.email, sub: user.id, role: user.role, isActive: user.isActive };
-    const accessToken = this.jwtService.sign(payload);
-
-    // Frontend ko batane ke liye ke kahan redirect karna hai
-    let redirectPath: string;
-    if (user.role === Role.ADMIN) {
-      redirectPath = '/admin/dashboard';
-    } else if (user.role === Role.SUPPLIER) {
-      redirectPath = '/supplier/dashboard';
-    } else { // Default for USER role
-      redirectPath = '/shop/dashboard'; // Assuming 'shop' module for regular users (POS users)
-    }
-
-    return {
-      accessToken,
-      redirectPath, // Frontend is path ko use karega
-    };
+  const user = await this.usersRepository.findOne({ where: { email } });
+  if (!user) {
+    throw new UnauthorizedException('Invalid credentials.');
   }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    throw new UnauthorizedException('Invalid credentials.');
+  }
+
+  if (!user.isActive) {
+    throw new UnauthorizedException('Your account is inactive. Please contact support.');
+  }
+
+  const payload: JwtPayload = {
+    email: user.email,
+    sub: user.id,
+    role: user.role,
+    isActive: user.isActive,
+  };
+
+  const accessToken = this.jwtService.sign(payload);
+
+  let redirectPath: string;
+  switch (user.role) {
+    case Role.ADMIN:
+      redirectPath = '/dashboard';
+      break;
+    case Role.SUPPLIER:
+      redirectPath = '/supplier/dashboard';
+      break;
+    default:
+      redirectPath = '/shop/dashboard';
+  }
+
+  // return ApiResponse format
+  return new ApiResponse(true, 'Login successful', {
+    token: accessToken,
+    redirectPath,
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  });
+}
+
 }
