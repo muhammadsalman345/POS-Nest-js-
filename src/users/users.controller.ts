@@ -5,6 +5,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Role } from 'src/common/enums/role.enum';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+import { errorResponse, successResponse } from 'src/common/utils/response.util';
          // Import kiya
 
 @Controller('users')
@@ -25,9 +26,15 @@ export class UsersController {
   @Get('all')
   // Ye endpoint sirf ADMIN role wala user access kar sakta hai
   @Roles(Role.ADMIN)
-  findAll() {
-    return this.usersService.findAll();
+@Roles(Role.ADMIN)
+async findAll() {
+  try {
+    const users = await this.usersService.findAll();
+    return successResponse(users, 'All users fetched');
+  } catch (err) {
+    return errorResponse('Failed to fetch users', 500, err.message);
   }
+}
 
   // Example: Shop Module ke liye ek dummy endpoint
   @Get('shop/products')
