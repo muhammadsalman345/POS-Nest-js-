@@ -1,0 +1,30 @@
+src/
+  products/
+    application/
+      dto/
+        create-product.dto.ts
+        update-product.dto.ts
+        filter-products.dto.ts         // pagination, sorting, search
+      use-cases/
+        create-product.usecase.ts      // (optional) agar service ko patla rakhna ho
+        list-products.usecase.ts
+    domain/
+      entities/
+        product.entity.ts              // Domain model (persistence-agnostic)
+      interfaces/
+        products-repository.interface.ts
+      types/
+        product-status.enum.ts
+        money.type.ts                  // example: value-object jaisa type
+    infrastructure/
+      persistence/
+        typeorm/
+          product.orm-entity.ts        // TypeORM entity
+          products.repository.ts       // Repo impl (implements interface)
+        // prisma/ ... (agar Prisma use karna ho)
+        // sequelize/ ... (agar Sequelize use karna ho)
+      mappers/
+        product.mapper.ts              // Domain <-> ORM mapping
+    presentation/
+      products.controller.ts
+    products.module.ts

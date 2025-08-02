@@ -1,6 +1,7 @@
 // src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Role } from '../../common/enums/role.enum';
+import { Shop } from 'src/shops/entities/shop.entity';
 
 @Entity()
 export class User {
@@ -36,4 +37,6 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+@OneToMany(() => Shop, (shop) => shop.user)
+shops: Shop[];
 }
