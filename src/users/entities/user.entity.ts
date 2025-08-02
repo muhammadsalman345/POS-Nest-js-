@@ -1,4 +1,3 @@
-// src/users/entities/user.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Role } from '../../common/enums/role.enum';
 import { Shop } from 'src/shops/entities/shop.entity';
@@ -8,7 +7,7 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ unique: true }) // Only email is unique
   email: string;
 
   @Column()
@@ -18,18 +17,18 @@ export class User {
   role: Role;
 
   @Column({ nullable: true })
-  firstName: string;
+  firstName?: string;
 
   @Column({ nullable: true })
-  lastName: string;
+  lastName?: string;
 
-  @Column({ unique: true, nullable: true })
-  phoneNumber: string;
+  @Column({ nullable: true }) // Removed unique constraint
+  phoneNumber?: string;
 
   @Column({ nullable: true })
-  address: string;
+  address?: string;
 
-  @Column({ default: true }) // <--- User active hai ya nahi
+  @Column({ default: false })
   isActive: boolean;
 
   @CreateDateColumn()
@@ -37,6 +36,7 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
-@OneToMany(() => Shop, (shop) => shop.user)
-shops: Shop[];
+
+  @OneToMany(() => Shop, (shop) => shop.user)
+  shops: Shop[];
 }

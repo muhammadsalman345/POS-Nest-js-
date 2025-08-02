@@ -1,4 +1,3 @@
-// src/auth/dto/signup.dto.ts
 import { IsEmail, IsString, MinLength, IsOptional, Matches } from 'class-validator';
 
 export class SignupDto {
@@ -19,6 +18,12 @@ export class SignupDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^\+?[1-9]\d{1,14}$/, { message: 'Please provide a valid phone number.' })
+  @Matches(/^\+?[1-9]\d{1,14}$/, { 
+    message: 'Please provide a valid phone number with country code.' 
+  })
   phoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
 }

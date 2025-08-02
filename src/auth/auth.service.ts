@@ -21,28 +21,31 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async signup(signupDto: SignupDto): Promise<User> {
-    const { email, password, firstName, lastName, phoneNumber } = signupDto;
+async signup(signupDto: SignupDto): Promise<User> {
+  const { email, password, firstName, lastName, phoneNumber,address } = signupDto;
 
-    const existingUser = await this.usersRepository.findOne({ where: { email } });
-    if (existingUser) {
-      throw new BadRequestException('Email already registered.');
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = this.usersRepository.create({
-      email,
-      password: hashedPassword,
-      role: Role.USER, // Default role
-      firstName,
-      lastName,
-      phoneNumber,
-      isActive: false, // New users are active by default
-    });
-
-    return this.usersRepository.save(newUser);
+  const existingUser = await this.usersRepository.findOne({ where: { email } });
+  if (existingUser) {
+    throw new BadRequestException('Email already registered.');
   }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = this.usersRepository.create({
+    email,
+    password: hashedPassword,
+    role: Role.USER,
+    firstName,
+    lastName,
+    address,
+    phoneNumber,
+    isActive: false,
+    shops: [] // Explicitly set shops as empty array
+  });
+
+  return this.usersRepository.save(newUser);
+}
+
 
  async signIn(signinDto: SigninDto): Promise<ApiResponse<any>> {
   const { email, password } = signinDto;

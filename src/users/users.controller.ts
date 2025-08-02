@@ -36,24 +36,4 @@ async findAll() {
   }
 }
 
-  // Example: Shop Module ke liye ek dummy endpoint
-  @Get('shop/products')
-  @Roles(Role.USER) // Ya USER role (jo POS operators honge) access kar sakte hain
-  getShopProducts() {
-    return { message: "Welcome to the Shop Module! You can see all products here.", role: "USER_ACCESS" };
-  }
-
-  // Example: Admin Dashboard ke liye ek dummy endpoint
-  @Get('admin/dashboard-data')
-  @Roles(Role.ADMIN)
-  getAdminDashboardData() {
-    return { message: "Welcome to the Admin Dashboard! Here's your admin data.", role: "ADMIN_ACCESS" };
-  }
-
-  // Example: Supplier Module ke liye ek dummy endpoint
-  @Get('supplier/inventory')
-  @Roles(Role.SUPPLIER)
-  getSupplierInventory() {
-    return { message: "Welcome to the Supplier Module! Manage your inventory here.", role: "SUPPLIER_ACCESS" };
-  }
 }
