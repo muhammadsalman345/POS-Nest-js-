@@ -1,5 +1,5 @@
 // src/users/users.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -20,5 +20,18 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
-  // Add more user-related methods as needed (create, update, delete)
+async updateStatus(userId: number): Promise<string> {
+  const result = await this.usersRepository.query(
+    `UPDATE user SET isActive = NOT isActive WHERE id = ?`,
+    [userId]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new NotFoundException('User not found');
+  }
+
+  return 'User status updated successfully';
+}
+
+ 
 }

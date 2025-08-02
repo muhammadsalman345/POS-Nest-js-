@@ -1,11 +1,12 @@
 // src/users/users.controller.ts
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Post, Body, Patch } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Role } from 'src/common/enums/role.enum';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { errorResponse, successResponse } from 'src/common/utils/response.util';
+import { UpdateUserStatusDto } from './dto/update-user.dto';
          // Import kiya
 
 @Controller('users')
@@ -34,6 +35,14 @@ async findAll() {
   } catch (err) {
     return errorResponse('Failed to fetch users', 500, err.message);
   }
+}
+
+// users.controller.ts
+
+@Patch('status')
+@Roles(Role.ADMIN)
+async updateUserStatus(@Body() dto: UpdateUserStatusDto) {
+  return this.usersService.updateStatus(dto.userId);
 }
 
 }
