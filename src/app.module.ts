@@ -1,26 +1,39 @@
-// src/app.module.ts
-
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module'; // AuthModule sahi import hua hai
-
-
-// Aapki typeOrmConfig file ko import karein
-import { typeOrmConfig } from './config/ormconfig';
+import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './auth/auth.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { CommonModule } from './common/common.module';
+import { CustomersModule } from './customers/customers.module';
+import { ExpensesModule } from './expenses/expenses.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { PurchasesModule } from './purchases/purchases.module';
+import { ReportsModule } from './reports/reports.module';
+import { SalesModule } from './sales/sales.module';
+import { SellersModule } from './sellers/sellers.module';
+import { ShopsModule } from './shops/shops.module';
 import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
-import { ShopsModule } from './shops/shops.module';
-
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(typeOrmConfig), // Database configuration sahi pass ho rahi hai
-    AuthModule, // AuthModule imports array mein shamil hai
-    UsersModule, ProductsModule, ShopsModule, // Ye comment out hai, jo theek hai agar abhi iski zaroorat nahi
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    CommonModule,
+    AuthModule,
+    UsersModule,
+    ShopsModule,
+    SellersModule,
+    CustomersModule,
+    ProductsModule,
+    PurchasesModule,
+    InventoryModule,
+    SalesModule,
+    ExpensesModule,
+    ReportsModule,
+    MarketplaceModule,
+    AuditLogsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

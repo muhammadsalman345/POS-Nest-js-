@@ -1,37 +1,52 @@
-// src/users/users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { AuthUser } from '../common/types/auth-user.type';
+import { paginated, pagination } from '../common/utils/pagination.util';
+import { sanitizeUser } from '../common/utils/user.util';
+import { PrismaService } from '../prisma/prisma.service';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Promise<User[]> {
-    return this.usersRepository.find();
+  async findAll(query: PaginationDto) {
+    const { page, limit, skip, take } = pagination(query);
+    const where = {
+      deletedAt: null,
+      ...(query.search
+        ? { OR: [{ name: { contains: query.search } }, { phone: { contains: query.search } }, { email: { contains: query.search } }] }
+        : {}),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({ where, skip, take, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
+      this.prisma.user.count({ where }),
+    ]);
+    return paginated(items.map(sanitizeUser), total, page, limit);
   }
 
-  // <--- YAHAN TABDEELI KI HAI --->
-  findOne(id: number): Promise<User | null> { // 'undefined' ki jagah 'null' kiya
-    return this.usersRepository.findOne({ where: { id } });
+  async findOne(id: number, current: AuthUser) {
+    if (current.role !== UserRole.ADMIN && current.id !== id) throw new ForbiddenException();
+    const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
+    if (!user) throw new NotFoundException('User not found');
+    return sanitizeUser(user);
   }
 
-async updateStatus(userId: number): Promise<string> {
-  const result = await this.usersRepository.query(
-    `UPDATE user SET isActive = NOT isActive WHERE id = ?`,
-    [userId]
-  );
-
-  if (result.affectedRows === 0) {
-    throw new NotFoundException('User not found');
+  async update(id: number, current: AuthUser, dto: UpdateUserDto) {
+    if (current.role !== UserRole.ADMIN && current.id !== id) throw new ForbiddenException();
+    const user = await this.prisma.user.update({ where: { id }, data: dto });
+    return sanitizeUser(user);
   }
 
-  return 'User status updated successfully';
-}
+  async remove(id: number) {
+    await this.prisma.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    return { message: 'User deleted' };
+  }
 
- 
+  async status(id: number, dto: UpdateUserStatusDto) {
+    const user = await this.prisma.user.update({ where: { id }, data: { isActive: dto.isActive } });
+    return sanitizeUser(user);
+  }
 }

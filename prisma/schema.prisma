@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SHOPKEEPER
+  CUSTOMER
+}
+
+enum ProductStatus {
+  IN_STOCK
+  RESERVED
+  SOLD
+  RETURNED
+  DAMAGED
+  UNDER_REPAIR
+}
+
+enum SaleType {
+  ONLINE
+  OFFLINE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  JAZZCASH
+  EASYPAISA
+  CARD
+}
+
+enum PtaStatus {
+  APPROVED
+  NOT_APPROVED
+  PATCHED
+  UNKNOWN
+}
+
+enum ProductCondition {
+  LIKE_NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  DAMAGED
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  email     String?    @unique
+  phone     String     @unique
+  password  String
+  role      UserRole
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+  shops     Shop[]
+  customer  Customer?
+  auditLogs AuditLog[]
+
+  @@index([role])
+  @@index([deletedAt])
+}
+
+model Shop {
+  id          Int        @id @default(autoincrement())
+  ownerId     Int
+  name        String
+  address     String
+  city        String
+  area        String?
+  phone       String?
+  logo        String?
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+  owner       User       @relation(fields: [ownerId], references: [id])
+  sellers     Seller[]
+  products    Product[]
+  purchases   Purchase[]
+  sales       Sale[]
+  expenses    Expense[]
+
+  @@index([ownerId])
+  @@index([city, area])
+  @@index([deletedAt])
+}
+
+model Seller {
+  id              Int        @id @default(autoincrement())
+  shopId          Int
+  name            String
+  fatherName      String?
+  cnic            String
+  phone           String
+  address         String
+  cnicFrontImage  String?
+  cnicBackImage   String?
+  photo           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  shop            Shop       @relation(fields: [shopId], references: [id])
+  products        Product[]
+  purchases       Purchase[]
+
+  @@index([shopId])
+  @@index([cnic])
+  @@index([phone])
+  @@index([deletedAt])
+}
+
+model Customer {
+  id        Int       @id @default(autoincrement())
+  userId    Int?      @unique
+  name      String
+  phone     String
+  cnic      String?
+  address   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      User?     @relation(fields: [userId], references: [id])
+  sales     Sale[]
+
+  @@index([phone])
+  @@index([deletedAt])
+}
+
+model Product {
+  id                Int              @id @default(autoincrement())
+  shopId            Int
+  sellerId          Int
+  brand             String
+  model             String
+  variant           String?
+  imei1             String           @unique
+  imei2             String?          @unique
+  storage           String?
+  ram               String?
+  color             String?
+  condition         ProductCondition
+  batteryHealth     Int?
+  accessories       String?
+  purchasePrice     Decimal          @db.Decimal(12, 2)
+  expectedSalePrice Decimal?         @db.Decimal(12, 2)
+  finalSalePrice    Decimal?         @db.Decimal(12, 2)
+  status            ProductStatus    @default(IN_STOCK)
+  ptaStatus         PtaStatus        @default(UNKNOWN)
+  description       String?
+  purchaseDate      DateTime
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+  shop              Shop             @relation(fields: [shopId], references: [id])
+  seller            Seller           @relation(fields: [sellerId], references: [id])
+  images            ProductImage[]
+  purchase          Purchase?
+  sales             Sale[]
+  expenses          Expense[]
+
+  @@index([shopId])
+  @@index([sellerId])
+  @@index([brand, model])
+  @@index([status])
+  @@index([condition])
+  @@index([ptaStatus])
+  @@index([deletedAt])
+}
+
+model ProductImage {
+  id        Int       @id @default(autoincrement())
+  productId Int
+  imageUrl  String
+  isPrimary Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([deletedAt])
+}
+
+model Purchase {
+  id            Int       @id @default(autoincrement())
+  shopId        Int
+  sellerId      Int
+  productId     Int       @unique
+  purchasePrice Decimal   @db.Decimal(12, 2)
+  purchaseDate  DateTime
+  notes         String?
+  receiptNumber String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  shop          Shop      @relation(fields: [shopId], references: [id])
+  seller        Seller    @relation(fields: [sellerId], references: [id])
+  product       Product   @relation(fields: [productId], references: [id])
+
+  @@index([shopId])
+  @@index([sellerId])
+  @@index([deletedAt])
+}
+
+model Sale {
+  id            Int           @id @default(autoincrement())
+  shopId        Int
+  productId     Int
+  customerId    Int
+  salePrice     Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  saleType      SaleType
+  warrantyDays  Int           @default(0)
+  invoiceNumber String        @unique
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  shop          Shop          @relation(fields: [shopId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+  customer      Customer      @relation(fields: [customerId], references: [id])
+
+  @@index([shopId])
+  @@index([productId])
+  @@index([customerId])
+  @@index([saleType])
+  @@index([deletedAt])
+}
+
+model Expense {
+  id          Int       @id @default(autoincrement())
+  shopId      Int
+  productId   Int?
+  title       String
+  amount      Decimal   @db.Decimal(12, 2)
+  type        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  shop        Shop      @relation(fields: [shopId], references: [id])
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  @@index([shopId])
+  @@index([productId])
+  @@index([type])
+  @@index([deletedAt])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  module    String
+  recordId  String?
+  oldData   String?  @db.LongText
+  newData   String?  @db.LongText
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+}

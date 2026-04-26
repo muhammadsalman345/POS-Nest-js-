@@ -1,8 +1,15 @@
-// dto/update-user-status.dto.ts
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
-import { IsNumber } from 'class-validator';
+export class UpdateUserDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
 
-export class UpdateUserStatusDto {
-  @IsNumber()
-  userId: number;
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }

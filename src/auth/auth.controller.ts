@@ -1,23 +1,39 @@
-// src/auth/auth.controller.ts
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AuthUser } from '../common/types/auth-user.type';
 import { AuthService } from './auth.service';
-import { SignupDto } from './dto/signup.dto';
-import { SigninDto } from './dto/signin.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
-  @Post('signup')
-  async signup(@Body() signupDto: SignupDto) {
-    const user = await this.authService.signup(signupDto);
-    const { password, ...result } = user;
-    return result;
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
   }
 
-  @Post('signin')
-  @HttpCode(HttpStatus.OK)
-  async signIn(@Body() signinDto: SigninDto) {
-    return this.authService.signIn(signinDto); // AuthService se redirectPath bhi ayega
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.auth.login(dto);
+  }
+
+  @Get('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  profile(@CurrentUser() user: AuthUser) {
+    return this.auth.profile(user);
+  }
+
+  @Post('change-password')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(user, dto);
   }
 }

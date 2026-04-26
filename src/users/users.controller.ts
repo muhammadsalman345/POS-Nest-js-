@@ -1,48 +1,48 @@
-// src/users/users.controller.ts
-import { Controller, Get, UseGuards, Req, Post, Body, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { AuthUser } from '../common/types/auth-user.type';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { Role } from 'src/common/enums/role.enum';
-import { Roles } from 'src/auth/decorators/roles.decorator';
-import { errorResponse, successResponse } from 'src/common/utils/response.util';
-import { UpdateUserStatusDto } from './dto/update-user.dto';
-         // Import kiya
 
-@Controller('users')
-// Har method par guard lagane ke bajaye, controller level par guards laga sakte hain
-// Har request par JWT check hoga, phir role check hoga
+@ApiTags('Users')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('users')
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(private readonly users: UsersService) {}
 
-  @Get('profile')
-  // Ye endpoint koi bhi authenticated aur active user access kar sakta hai (admin, user, supplier)
-  @Roles(Role.ADMIN, Role.USER, Role.SUPPLIER)
-  getProfile(@Req() req) {
-    // req.user mein JwtStrategy se return kiya gaya user data hoga
-    return req.user;
+  @Get()
+  @Roles(UserRole.ADMIN)
+  findAll(@Query() query: PaginationDto) {
+    return this.users.findAll(query);
   }
 
-  @Get('all')
-  // Ye endpoint sirf ADMIN role wala user access kar sakta hai
-  @Roles(Role.ADMIN)
-@Roles(Role.ADMIN)
-async findAll() {
-  try {
-    const users = await this.usersService.findAll();
-    return successResponse(users, 'All users fetched');
-  } catch (err) {
-    return errorResponse('Failed to fetch users', 500, err.message);
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.users.findOne(+id, user);
   }
-}
 
-// users.controller.ts
+  @Patch(':id')
+  update(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: UpdateUserDto) {
+    return this.users.update(+id, user, dto);
+  }
 
-@Patch('status')
-@Roles(Role.ADMIN)
-async updateUserStatus(@Body() dto: UpdateUserStatusDto) {
-  return this.usersService.updateStatus(dto.userId);
-}
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  remove(@Param('id') id: string) {
+    return this.users.remove(+id);
+  }
 
+  @Patch(':id/status')
+  @Roles(UserRole.ADMIN)
+  status(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) {
+    return this.users.status(+id, dto);
+  }
 }
