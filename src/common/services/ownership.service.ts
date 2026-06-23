@@ -10,7 +10,7 @@ export class OwnershipService {
   async ensureShopAccess(shopId: number, user: AuthUser) {
     const shop = await this.prisma.shop.findFirst({ where: { id: shopId, deletedAt: null } });
     if (!shop) throw new NotFoundException('Shop not found');
-    if (user.role !== UserRole.ADMIN && shop.ownerId !== user.id) throw new ForbiddenException('Forbidden shop access');
+    if (user.role !== UserRole.SUPER_ADMIN && shop.ownerId !== user.id) throw new ForbiddenException('Forbidden shop access');
     return shop;
   }
 

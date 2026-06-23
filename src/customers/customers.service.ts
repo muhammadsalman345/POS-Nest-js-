@@ -12,7 +12,7 @@ export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(user: AuthUser, dto: CreateCustomerDto) {
-    return this.prisma.customer.create({ data: { ...dto, userId: dto.userId || (user.role === UserRole.CUSTOMER ? user.id : null) } });
+    return this.prisma.customer.create({ data: { ...dto, userId: dto.userId || (user.role === UserRole.BUYER ? user.id : null) } });
   }
 
   async list(query: PaginationDto) {

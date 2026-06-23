@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    if (dto.role === UserRole.ADMIN) throw new BadRequestException('Admin registration is not public');
+    if (dto.role === UserRole.SUPER_ADMIN) throw new BadRequestException('Super admin registration is not public');
     if (dto.confirmPassword && dto.confirmPassword !== dto.password) {
       throw new BadRequestException('Password confirmation does not match');
     }
@@ -33,7 +33,6 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    debugger
     if (!dto.phone && !dto.email) throw new BadRequestException('Phone or email is required');
     const user = await this.prisma.user.findFirst({
       where: {

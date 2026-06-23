@@ -8,9 +8,9 @@ datasource db {
 }
 
 enum UserRole {
-  ADMIN
-  SHOPKEEPER
-  CUSTOMER
+  SUPER_ADMIN
+  SELLER
+  BUYER
 }
 
 enum ProductStatus {
@@ -43,11 +43,25 @@ enum PtaStatus {
 }
 
 enum ProductCondition {
+  NEW
   LIKE_NEW
   EXCELLENT
   GOOD
   FAIR
   DAMAGED
+}
+
+enum ShopApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAYMENT_REQUIRED
+}
+
+enum ProductSourceType {
+  CUSTOMER
+  SUPPLIER
+  OTHER_SHOP
 }
 
 model User {
@@ -80,6 +94,12 @@ model Shop {
   logo        String?
   description String?
   isActive    Boolean    @default(true)
+  approvalStatus ShopApprovalStatus @default(PENDING)
+  paymentRequired Boolean @default(false)
+  paymentAmount Decimal? @db.Decimal(12, 2)
+  approvedAt DateTime?
+  approvedById Int?
+  rejectionReason String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   deletedAt   DateTime?
@@ -91,6 +111,7 @@ model Shop {
   expenses    Expense[]
 
   @@index([ownerId])
+  @@index([approvalStatus])
   @@index([city, area])
   @@index([deletedAt])
 }
@@ -154,6 +175,16 @@ model Product {
   purchasePrice     Decimal          @db.Decimal(12, 2)
   expectedSalePrice Decimal?         @db.Decimal(12, 2)
   finalSalePrice    Decimal?         @db.Decimal(12, 2)
+  onlineSaleEnabled Boolean          @default(false)
+  sourceType        ProductSourceType @default(CUSTOMER)
+  sourceName        String?
+  sourcePhone       String?
+  sourceCnic        String?
+  sourceAddress     String?
+  supplierBusinessName String?
+  supplierContactPerson String?
+  supplierPhone     String?
+  supplierAddress   String?
   status            ProductStatus    @default(IN_STOCK)
   ptaStatus         PtaStatus        @default(UNKNOWN)
   description       String?

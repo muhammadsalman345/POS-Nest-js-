@@ -28,14 +28,14 @@ export class UsersService {
   }
 
   async findOne(id: number, current: AuthUser) {
-    if (current.role !== UserRole.ADMIN && current.id !== id) throw new ForbiddenException();
+    if (current.role !== UserRole.SUPER_ADMIN && current.id !== id) throw new ForbiddenException();
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('User not found');
     return sanitizeUser(user);
   }
 
   async update(id: number, current: AuthUser, dto: UpdateUserDto) {
-    if (current.role !== UserRole.ADMIN && current.id !== id) throw new ForbiddenException();
+    if (current.role !== UserRole.SUPER_ADMIN && current.id !== id) throw new ForbiddenException();
     const user = await this.prisma.user.update({ where: { id }, data: dto });
     return sanitizeUser(user);
   }

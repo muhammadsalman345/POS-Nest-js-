@@ -1,6 +1,6 @@
-import { ProductCondition, ProductStatus, PtaStatus } from '@prisma/client';
+import { ProductCondition, ProductSourceType, ProductStatus, PtaStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -46,6 +46,24 @@ export class CreateProductDto {
   @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  onlineSaleEnabled?: boolean;
+
+  @IsOptional()
+  @IsEnum(ProductSourceType)
+  sourceType?: ProductSourceType;
+
+  @IsOptional() @IsString() sourceName?: string;
+  @IsOptional() @IsString() sourcePhone?: string;
+  @IsOptional() @IsString() sourceCnic?: string;
+  @IsOptional() @IsString() sourceAddress?: string;
+  @IsOptional() @IsString() supplierBusinessName?: string;
+  @IsOptional() @IsString() supplierContactPerson?: string;
+  @IsOptional() @IsString() supplierPhone?: string;
+  @IsOptional() @IsString() supplierAddress?: string;
 
   @IsEnum(PtaStatus)
   ptaStatus: PtaStatus;

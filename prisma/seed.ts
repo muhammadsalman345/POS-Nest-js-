@@ -1,4 +1,4 @@
-import { PrismaClient, ProductCondition, ProductStatus, PtaStatus, UserRole, PaymentMethod, SaleType } from '@prisma/client';
+import { PrismaClient, ProductCondition, ProductStatus, PtaStatus, UserRole, PaymentMethod, SaleType, ShopApprovalStatus, ProductSourceType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -13,23 +13,34 @@ async function main() {
   const admin = await prisma.user.upsert({
     where: { phone: '03000000000' },
     update: {},
-    create: { name: 'Super Admin', email: 'admin@example.com', phone: '03000000000', password: adminPassword, role: UserRole.ADMIN },
+    create: { name: 'Super Admin', email: 'admin@example.com', phone: '03000000000', password: adminPassword, role: UserRole.SUPER_ADMIN },
   });
 
   const shopkeeper = await prisma.user.upsert({
     where: { phone: '03111111111' },
     update: {},
-    create: { name: 'Ali Mobile Shop', email: 'shopkeeper@example.com', phone: '03111111111', password: shopkeeperPassword, role: UserRole.SHOPKEEPER },
+    create: { name: 'Ali Mobile Shop', email: 'shopkeeper@example.com', phone: '03111111111', password: shopkeeperPassword, role: UserRole.SELLER },
   });
 
   const customerUser = await prisma.user.upsert({
     where: { phone: '03222222222' },
     update: {},
-    create: { name: 'Test Customer', email: 'customer@example.com', phone: '03222222222', password: customerPassword, role: UserRole.CUSTOMER },
+    create: { name: 'Test Customer', email: 'customer@example.com', phone: '03222222222', password: customerPassword, role: UserRole.BUYER },
   });
 
   const shop = await prisma.shop.create({
-    data: { ownerId: shopkeeper.id, name: 'Hafeez Mobile Center', address: 'Shop 12, Hafeez Center, Gulberg', city: 'Lahore', area: 'Gulberg', phone: '04235700000' },
+    data: {
+      ownerId: shopkeeper.id,
+      name: 'Hafeez Mobile Center',
+      address: 'Shop 12, Hafeez Center, Gulberg',
+      city: 'Lahore',
+      area: 'Gulberg',
+      phone: '04235700000',
+      isActive: true,
+      approvalStatus: ShopApprovalStatus.APPROVED,
+      approvedAt: new Date(),
+      approvedById: admin.id,
+    },
   });
 
   const seller = await prisma.seller.create({
@@ -56,6 +67,10 @@ async function main() {
       finalSalePrice: 185000,
       status: ProductStatus.SOLD,
       ptaStatus: PtaStatus.APPROVED,
+      onlineSaleEnabled: false,
+      sourceType: ProductSourceType.CUSTOMER,
+      sourceName: 'Walk-in Seller',
+      sourcePhone: '03009998888',
       description: 'Clean device with original display.',
       purchaseDate: new Date(),
     },
@@ -77,6 +92,10 @@ async function main() {
       expectedSalePrice: 128000,
       status: ProductStatus.IN_STOCK,
       ptaStatus: PtaStatus.APPROVED,
+      onlineSaleEnabled: true,
+      sourceType: ProductSourceType.SUPPLIER,
+      supplierBusinessName: 'Metro Mobile Wholesale',
+      supplierPhone: '03001112222',
       purchaseDate: new Date(),
     },
   });
