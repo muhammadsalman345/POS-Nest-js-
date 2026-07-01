@@ -4,10 +4,15 @@ import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } fr
 import { CreateCustomerDto } from '../../customers/dto/create-customer.dto';
 
 export class CreateSaleDto {
+  @Transform(({ value }) => Number(value))
   @IsInt()
+  @Min(1)
   productId: number;
 
   @IsOptional()
+  @Transform(({ value }) => value === undefined || value === null || value === '' ? undefined : Number(value))
+  @IsInt()
+  @Min(1)
   customerId?: number;
 
   @IsOptional()
@@ -28,6 +33,7 @@ export class CreateSaleDto {
   saleType?: SaleType;
 
   @IsOptional()
+  @Transform(({ value }) => value === undefined || value === null || value === '' ? undefined : Number(value))
   @IsInt()
   @Min(0)
   warrantyDays?: number;

@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { CreateSellerDto } from '../../sellers/dto/create-seller.dto';
 import { CreateProductDto } from '../../products/dto/create-product.dto';
@@ -23,6 +23,9 @@ export class PurchaseMetaDto {
 
 export class CreatePurchaseDto {
   @IsOptional()
+  @Transform(({ value }) => value === undefined || value === null || value === '' ? undefined : Number(value))
+  @IsInt()
+  @Min(1)
   sellerId?: number;
 
   @IsOptional()

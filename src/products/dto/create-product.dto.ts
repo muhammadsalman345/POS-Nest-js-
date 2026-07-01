@@ -3,6 +3,9 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateProductDto {
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
   @IsNotEmpty()
   sellerId: number;
 
