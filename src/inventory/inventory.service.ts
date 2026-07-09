@@ -22,7 +22,7 @@ export class InventoryService {
       this.prisma.product.count({ where }),
       this.prisma.product.groupBy({ by: ['status'], where, _count: { _all: true }, orderBy: { status: 'asc' } }),
       this.prisma.product.aggregate({ where, _sum: { purchasePrice: true } }),
-      this.prisma.product.aggregate({ where: { ...where, status: ProductStatus.IN_STOCK }, _sum: { expectedSalePrice: true } }),
+      this.prisma.product.aggregate({ where: { ...where, status: { in: [ProductStatus.IN_STOCK, ProductStatus.AVAILABLE] } }, _sum: { expectedSalePrice: true } }),
     ]);
     const count = (status: ProductStatus) => {
       const row = statusCounts.find((item) => item.status === status) as { _count?: { _all?: number } } | undefined;
@@ -30,7 +30,7 @@ export class InventoryService {
     };
     return {
       totalProducts,
-      inStock: count(ProductStatus.IN_STOCK),
+      inStock: count(ProductStatus.IN_STOCK) + count(ProductStatus.AVAILABLE),
       sold: count(ProductStatus.SOLD),
       reserved: count(ProductStatus.RESERVED),
       damaged: count(ProductStatus.DAMAGED),

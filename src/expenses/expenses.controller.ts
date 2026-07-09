@@ -14,6 +14,10 @@ import { ExpensesService } from './expenses.service';
 @Controller()
 export class ExpensesController {
   constructor(private readonly expenses: ExpensesService) {}
+  @Post('expenses')
+  createRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateExpenseDto) { return this.expenses.create(+shopId, user, dto); }
+  @Get('expenses')
+  listRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Query() query: ExpenseFilterDto) { return this.expenses.list(+shopId, user, query); }
   @Post('shops/:shopId/expenses')
   create(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateExpenseDto) { return this.expenses.create(+shopId, user, dto); }
   @Get('shops/:shopId/expenses')

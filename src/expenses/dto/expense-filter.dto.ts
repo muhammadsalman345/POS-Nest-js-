@@ -6,6 +6,9 @@ export class ExpenseFilterDto extends PaginationDto {
   productId?: number;
 
   @IsOptional()
+  categoryId?: number;
+
+  @IsOptional()
   @IsString()
   type?: string;
 
@@ -15,5 +18,13 @@ export class ExpenseFilterDto extends PaginationDto {
 
   @IsOptional()
   @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
   dateTo?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ProductStatus, ShopApprovalStatus } from '@prisma/client';
+import { MarketplaceStatus, Prisma, ProductStatus, SaleMode, ShopApprovalStatus } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { ProductFilterDto } from '../products/dto/product-filter.dto';
@@ -37,8 +37,9 @@ export class MarketplaceService {
 
   productsList(query: ProductFilterDto & { city?: string; area?: string; shopId?: number }) {
     const where: Prisma.ProductWhereInput = {
-      status: ProductStatus.IN_STOCK,
-      onlineSaleEnabled: true,
+      status: { in: [ProductStatus.IN_STOCK, ProductStatus.AVAILABLE] },
+      saleMode: { in: [SaleMode.ONLINE_MARKETPLACE, SaleMode.BOTH] },
+      marketplaceStatus: MarketplaceStatus.PUBLISHED,
       shop: {
         isActive: true,
         approvalStatus: ShopApprovalStatus.APPROVED,
@@ -55,8 +56,9 @@ export class MarketplaceService {
     const product = await this.prisma.product.findFirst({
       where: {
         id,
-        status: ProductStatus.IN_STOCK,
-        onlineSaleEnabled: true,
+        status: { in: [ProductStatus.IN_STOCK, ProductStatus.AVAILABLE] },
+        saleMode: { in: [SaleMode.ONLINE_MARKETPLACE, SaleMode.BOTH] },
+        marketplaceStatus: MarketplaceStatus.PUBLISHED,
         deletedAt: null,
         shop: { isActive: true, approvalStatus: ShopApprovalStatus.APPROVED },
       },

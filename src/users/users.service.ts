@@ -12,6 +12,10 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private isAdmin(user: AuthUser) {
+    return user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+  }
+
   async findAll(query: PaginationDto) {
     const { page, limit, skip, take } = pagination(query);
     const where = {
@@ -28,14 +32,14 @@ export class UsersService {
   }
 
   async findOne(id: number, current: AuthUser) {
-    if (current.role !== UserRole.SUPER_ADMIN && current.id !== id) throw new ForbiddenException();
+    if (!this.isAdmin(current) && current.id !== id) throw new ForbiddenException();
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new NotFoundException('User not found');
     return sanitizeUser(user);
   }
 
   async update(id: number, current: AuthUser, dto: UpdateUserDto) {
-    if (current.role !== UserRole.SUPER_ADMIN && current.id !== id) throw new ForbiddenException();
+    if (!this.isAdmin(current) && current.id !== id) throw new ForbiddenException();
     const user = await this.prisma.user.update({ where: { id }, data: dto });
     return sanitizeUser(user);
   }
@@ -46,7 +50,7 @@ export class UsersService {
   }
 
   async status(id: number, dto: UpdateUserStatusDto) {
-    const user = await this.prisma.user.update({ where: { id }, data: { isActive: dto.isActive } });
+    const user = await this.prisma.user.update({ where: { id }, data: { isActive: dto.isActive, status: dto.isActive ? 'ACTIVE' : 'BLOCKED' } });
     return sanitizeUser(user);
   }
 }

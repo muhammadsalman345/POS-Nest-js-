@@ -20,13 +20,13 @@ export class ShopsController {
   constructor(private readonly shops: ShopsService) {}
 
   @Post()
-  @Roles(UserRole.SELLER, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SELLER, UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateShopDto) {
     return this.shops.create(user, dto);
   }
 
   @Get('my')
-  @Roles(UserRole.SELLER)
+  @Roles(UserRole.SELLER, UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   my(@CurrentUser() user: AuthUser, @Query() query: PaginationDto) {
     return this.shops.my(user, query);
   }
@@ -42,7 +42,7 @@ export class ShopsController {
   }
 
   @Patch(':id/review')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   review(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: ReviewShopDto) {
     return this.shops.review(+id, user, dto);
   }

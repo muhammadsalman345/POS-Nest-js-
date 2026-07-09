@@ -18,11 +18,11 @@ export class CustomersController {
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCustomerDto) { return this.customers.create(user, dto); }
   @Get()
-  list(@Query() query: PaginationDto) { return this.customers.list(query); }
+  list(@CurrentUser() user: AuthUser, @Query() query: PaginationDto) { return this.customers.list(user, query); }
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.customers.findOne(+id); }
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.customers.findOne(+id, user); }
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) { return this.customers.update(+id, dto); }
+  update(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: UpdateCustomerDto) { return this.customers.update(+id, user, dto); }
   @Delete(':id')
-  remove(@Param('id') id: string) { return this.customers.remove(+id); }
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.customers.remove(+id, user); }
 }

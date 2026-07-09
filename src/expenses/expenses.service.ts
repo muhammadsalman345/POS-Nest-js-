@@ -16,7 +16,18 @@ export class ExpensesService {
   async create(shopId: number, user: AuthUser, dto: CreateExpenseDto) {
     await this.ownership.ensureShopAccess(shopId, user);
     if (dto.productId) await this.ownership.ensureProductAccess(Number(dto.productId), user);
-    const expense = await this.prisma.expense.create({ data: { ...dto, shopId, productId: dto.productId ? Number(dto.productId) : undefined } });
+    const expense = await this.prisma.expense.create({
+      data: {
+        ...dto,
+        shopId,
+        productId: dto.productId ? Number(dto.productId) : undefined,
+        expenseCategoryId: dto.expenseCategoryId ? Number(dto.expenseCategoryId) : undefined,
+        title: dto.title || dto.description || 'Expense',
+        type: dto.type || 'Misc',
+        expenseDate: dto.expenseDate ? new Date(dto.expenseDate) : new Date(),
+        createdById: user.id,
+      },
+    });
     await this.audit(user.id, 'CREATE', expense.id, null, expense);
     return expense;
   }
@@ -28,8 +39,11 @@ export class ExpensesService {
       shopId,
       deletedAt: null,
       ...(query.productId ? { productId: Number(query.productId) } : {}),
+      ...(query.categoryId ? { expenseCategoryId: Number(query.categoryId) } : {}),
       ...(query.type ? { type: query.type } : {}),
-      ...(query.dateFrom || query.dateTo ? { createdAt: { gte: query.dateFrom ? new Date(query.dateFrom) : undefined, lte: query.dateTo ? new Date(query.dateTo) : undefined } } : {}),
+      ...(query.dateFrom || query.dateTo || query.from || query.to
+        ? { expenseDate: { gte: query.dateFrom || query.from ? new Date(query.dateFrom || query.from!) : undefined, lte: query.dateTo || query.to ? new Date(query.dateTo || query.to!) : undefined } }
+        : {}),
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.expense.findMany({ where, skip, take, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
@@ -47,7 +61,7 @@ export class ExpensesService {
 
   async update(id: number, user: AuthUser, dto: UpdateExpenseDto) {
     const old = await this.findOne(id, user);
-    const expense = await this.prisma.expense.update({ where: { id }, data: dto });
+    const expense = await this.prisma.expense.update({ where: { id }, data: { ...dto, expenseDate: dto.expenseDate ? new Date(dto.expenseDate) : undefined, updatedById: user.id } });
     await this.audit(user.id, 'UPDATE', id, old, expense);
     return expense;
   }

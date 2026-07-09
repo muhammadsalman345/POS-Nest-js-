@@ -33,6 +33,12 @@ export class CreatePurchaseDto {
   @Type(() => CreateSellerDto)
   seller?: CreateSellerDto;
 
+  @IsOptional()
+  @Transform(({ value }) => value === undefined || value === null || value === '' ? undefined : Number(value))
+  @IsInt()
+  @Min(1)
+  sourceId?: number;
+
   @IsNotEmpty()
   @ValidateNested()
   @Type(() => CreateProductDto)

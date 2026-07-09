@@ -1,13 +1,37 @@
-import { PaymentMethod, SaleType } from '@prisma/client';
+import { DiscountType, PaymentMethod, SaleType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { CreateCustomerDto } from '../../customers/dto/create-customer.dto';
 
-export class CreateSaleDto {
+export class SaleItemDto {
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1)
   productId: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  quantity = 1;
+
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  unitPrice: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  discountAmount?: number;
+}
+
+export class CreateSaleDto {
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  productId?: number;
 
   @IsOptional()
   @Transform(({ value }) => value === undefined || value === null || value === '' ? undefined : Number(value))
@@ -20,13 +44,15 @@ export class CreateSaleDto {
   @Type(() => CreateCustomerDto)
   customer?: CreateCustomerDto;
 
+  @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber()
   @Min(0)
-  salePrice: number;
+  salePrice?: number;
 
+  @IsOptional()
   @IsEnum(PaymentMethod)
-  paymentMethod: PaymentMethod;
+  paymentMethod?: PaymentMethod;
 
   @IsOptional()
   @IsEnum(SaleType)
@@ -41,6 +67,46 @@ export class CreateSaleDto {
   @IsOptional()
   @IsString()
   invoiceNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  invoiceNo?: string;
+
+  @IsOptional()
+  @IsDateString()
+  saleDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SaleItemDto)
+  items?: SaleItemDto[];
+
+  @IsOptional()
+  @IsEnum(DiscountType)
+  discountType?: DiscountType;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  discountAmount?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  taxAmount?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  paidAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentReferenceNo?: string;
 
   @IsOptional()
   @IsString()

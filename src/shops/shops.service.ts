@@ -17,11 +17,13 @@ export class ShopsService {
   ) {}
 
   async create(user: AuthUser, dto: CreateShopDto) {
-    const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+    const isSuperAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
     const shop = await this.prisma.shop.create({
       data: {
         ...dto,
+        slug: dto.slug || this.slug(dto.name),
         ownerId: user.id,
+        createdById: user.id,
         isActive: isSuperAdmin,
         approvalStatus: isSuperAdmin ? ShopApprovalStatus.APPROVED : ShopApprovalStatus.PENDING,
         approvedAt: isSuperAdmin ? new Date() : undefined,
@@ -37,7 +39,7 @@ export class ShopsService {
   }
 
   async findAll(user: AuthUser, query: PaginationDto) {
-    return this.list(query, user.role === UserRole.SUPER_ADMIN ? {} : { ownerId: user.id });
+    return this.list(query, user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN ? {} : { ownerId: user.id });
   }
 
   async findOne(id: number, user: AuthUser) {
@@ -46,7 +48,7 @@ export class ShopsService {
 
   async update(id: number, user: AuthUser, dto: UpdateShopDto) {
     const old = await this.ownership.ensureShopAccess(id, user);
-    const shop = await this.prisma.shop.update({ where: { id }, data: dto });
+    const shop = await this.prisma.shop.update({ where: { id }, data: { ...dto, slug: dto.slug || (dto.name ? this.slug(dto.name) : undefined), updatedById: user.id } });
     await this.audit(user.id, 'UPDATE', id, old, shop);
     return shop;
   }
@@ -96,5 +98,9 @@ export class ShopsService {
     return this.prisma.auditLog.create({
       data: { userId, action, module: 'SHOP', recordId: String(recordId), oldData: serializeAuditData(oldData), newData: serializeAuditData(newData) },
     });
+  }
+
+  private slug(value: string) {
+    return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
 }

@@ -22,6 +22,7 @@ export class RegisterDto {
   @IsString()
   confirmPassword?: string;
 
+  @IsOptional()
   @IsEnum(UserRole)
-  role: UserRole;
+  role?: UserRole;
 }

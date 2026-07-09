@@ -1,0 +1,42 @@
+export const productResource = (product: any) => {
+  if (!product) return product;
+  return {
+    id: product.id,
+    shopId: product.shopId,
+    categoryId: product.categoryId,
+    sourceId: product.sourceId,
+    name: product.name,
+    brand: product.brand,
+    model: product.model,
+    variant: product.variant,
+    color: product.color,
+    storage: product.storage,
+    ram: product.ram,
+    condition: product.condition,
+    purchasePrice: product.purchasePrice,
+    salePrice: product.salePrice ?? product.expectedSalePrice,
+    minimumSalePrice: product.minimumSalePrice,
+    quantity: product.quantity,
+    soldQuantity: product.soldQuantity,
+    availableQuantity: product.availableQuantity,
+    imei1: product.imei1,
+    imei2: product.imei2,
+    serialNumber: product.serialNumber,
+    barcode: product.barcode,
+    qrCode: product.qrCode,
+    warrantyType: product.warrantyType,
+    warrantyMonths: product.warrantyMonths,
+    saleMode: product.saleMode,
+    marketplaceStatus: product.marketplaceStatus,
+    status: product.status,
+    description: product.description,
+    purchaseDate: product.purchaseDate,
+    images: product.images,
+    category: product.category,
+    source: product.source,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
+  };
+};
+
+export const productCollection = (items: any[]) => items.map(productResource);

@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    if (dto.role === UserRole.SUPER_ADMIN) throw new BadRequestException('Super admin registration is not public');
+    if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.ADMIN) throw new BadRequestException('Admin registration is not public');
     if (dto.confirmPassword && dto.confirmPassword !== dto.password) {
       throw new BadRequestException('Password confirmation does not match');
     }
@@ -27,7 +27,7 @@ export class AuthService {
     const { confirmPassword, ...data } = dto;
     void confirmPassword;
     const user = await this.prisma.user.create({
-      data: { ...data, password: await bcrypt.hash(dto.password, 10) },
+      data: { ...data, role: data.role || UserRole.USER, password: await bcrypt.hash(dto.password, 10) },
     });
     return this.authResponse(user);
   }
@@ -40,12 +40,15 @@ export class AuthService {
         OR: [{ phone: dto.phone || undefined }, { email: dto.email || undefined }],
       },
     });
-    if (!user || !user.isActive || !(await bcrypt.compare(dto.password, user.password))) {
+    if (!user || !user.isActive || user.status !== 'ACTIVE' || !(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    await this.prisma.auditLog.create({
-      data: { userId: user.id, action: 'LOGIN', module: 'AUTH', recordId: String(user.id) },
-    });
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
+      this.prisma.auditLog.create({
+        data: { userId: user.id, action: 'LOGIN', module: 'AUTH', recordId: String(user.id) },
+      }),
+    ]);
     return this.authResponse(user);
   }
 
@@ -65,6 +68,16 @@ export class AuthService {
       data: { password: await bcrypt.hash(dto.newPassword, 10) },
     });
     return { message: 'Password changed successfully' };
+  }
+
+  async updateProfile(user: AuthUser, dto: { name?: string; email?: string; phone?: string }) {
+    const updated = await this.prisma.user.update({ where: { id: user.id }, data: dto });
+    return sanitizeUser(updated);
+  }
+
+  logout(user: AuthUser) {
+    void user;
+    return { message: 'Logged out successfully' };
   }
 
   private async ensureUnique(phone: string, email?: string) {

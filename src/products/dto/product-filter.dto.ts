@@ -4,9 +4,11 @@ import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class ProductFilterDto extends PaginationDto {
+  @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() brand?: string;
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() imei?: string;
+  @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsEnum(ProductStatus) status?: ProductStatus;
   @IsOptional() @IsEnum(ProductCondition) condition?: ProductCondition;
   @IsOptional() @IsEnum(PtaStatus) ptaStatus?: PtaStatus;

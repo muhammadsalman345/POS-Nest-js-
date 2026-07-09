@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthUser } from '../common/types/auth-user.type';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { SalesService } from './sales.service';
@@ -16,12 +17,16 @@ import { SalesService } from './sales.service';
 export class SalesController {
   constructor(private readonly sales: SalesService) {}
 
+  @Post('sales')
+  create(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto) { return this.sales.create(+shopId, user, dto, dto.saleType || SaleType.OFFLINE); }
   @Post('shops/:shopId/sales/offline')
   offline(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto) { return this.sales.create(+shopId, user, dto, SaleType.OFFLINE); }
   @Post('shops/:shopId/sales/online')
   online(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto) { return this.sales.create(+shopId, user, dto, SaleType.ONLINE); }
   @Get('shops/:shopId/sales')
   list(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Query() query: PaginationDto) { return this.sales.list(+shopId, user, query); }
+  @Get('sales')
+  listRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Query() query: PaginationDto) { return this.sales.list(+shopId, user, query); }
   @Get('sales/:id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.findOne(+id, user); }
   @Patch('sales/:id')
@@ -30,4 +35,12 @@ export class SalesController {
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.remove(+id, user); }
   @Get('sales/:id/invoice')
   invoice(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.invoice(+id, user); }
+  @Post('sales/:id/payment')
+  addPayment(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: CreatePaymentDto) { return this.sales.addPayment(+id, user, dto); }
+  @Post('sales/:id/refund')
+  refund(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.refund(+id, user); }
+  @Post('sales/:id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.cancel(+id, user); }
+  @Get('sales/:id/receipt-pdf')
+  receipt(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.sales.invoice(+id, user); }
 }

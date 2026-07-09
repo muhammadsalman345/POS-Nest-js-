@@ -10,7 +10,7 @@ import { AuditLogsService } from './audit-logs.service';
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @Controller('audit-logs')
 export class AuditLogsController {
   constructor(private readonly auditLogs: AuditLogsService) {}

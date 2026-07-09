@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -35,5 +35,63 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
     return this.auth.changePassword(user, dto);
+  }
+
+  @Post('logout')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  logout(@CurrentUser() user: AuthUser) {
+    return this.auth.logout(user);
+  }
+
+  @Put('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  updateProfile(@CurrentUser() user: AuthUser, @Body() dto: { name?: string; email?: string; phone?: string }) {
+    return this.auth.updateProfile(user, dto);
+  }
+}
+
+@ApiTags('Auth')
+@Controller()
+export class RootAuthController {
+  constructor(private readonly auth: AuthService) {}
+
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
+  }
+
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.auth.login(dto);
+  }
+
+  @Post('logout')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  logout(@CurrentUser() user: AuthUser) {
+    return this.auth.logout(user);
+  }
+
+  @Post('change-password')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(user, dto);
+  }
+
+  @Get('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  profile(@CurrentUser() user: AuthUser) {
+    return this.auth.profile(user);
+  }
+
+  @Put('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  updateProfile(@CurrentUser() user: AuthUser, @Body() dto: { name?: string; email?: string; phone?: string }) {
+    return this.auth.updateProfile(user, dto);
   }
 }

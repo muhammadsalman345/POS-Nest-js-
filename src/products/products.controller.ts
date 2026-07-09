@@ -18,6 +18,16 @@ import { ProductsService } from './products.service';
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
+  @Post('products')
+  createRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
+    return this.products.create(+shopId, user, dto);
+  }
+
+  @Get('products')
+  listRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Query() query: ProductFilterDto) {
+    return this.products.list(+shopId, user, query);
+  }
+
   @Post('shops/:shopId/products')
   create(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
     return this.products.create(+shopId, user, dto);
@@ -28,6 +38,10 @@ export class ProductsController {
     return this.products.list(+shopId, user, query);
   }
 
+  @Get('products/search')
+  searchByImei(@Query('imei') imei: string, @CurrentUser() user: AuthUser) { return this.products.searchByImei(imei, user); }
+  @Get('products/barcode/:barcode')
+  findByBarcode(@Param('barcode') barcode: string, @CurrentUser() user: AuthUser) { return this.products.findByBarcode(barcode, user); }
   @Get('products/:id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.products.findOne(+id, user); }
   @Patch('products/:id')
@@ -40,4 +54,10 @@ export class ProductsController {
   deleteImage(@Param('id') id: string, @Param('imageId') imageId: string, @CurrentUser() user: AuthUser) { return this.products.deleteImage(+id, +imageId, user); }
   @Patch('products/:id/status')
   status(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: UpdateProductStatusDto) { return this.products.status(+id, user, dto); }
+  @Post('products/:id/publish')
+  publish(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.products.publish(+id, user); }
+  @Post('products/:id/unpublish')
+  unpublish(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.products.unpublish(+id, user); }
+  @Get('products/:id/barcode-label-pdf')
+  barcodeLabel(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.products.barcodeLabel(+id, user); }
 }

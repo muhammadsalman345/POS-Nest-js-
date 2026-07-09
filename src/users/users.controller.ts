@@ -19,7 +19,7 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   findAll(@Query() query: PaginationDto) {
     return this.users.findAll(query);
   }
@@ -35,13 +35,13 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.users.remove(+id);
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   status(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) {
     return this.users.status(+id, dto);
   }

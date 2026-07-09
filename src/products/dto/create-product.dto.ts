@@ -1,4 +1,4 @@
-import { ProductCondition, ProductSourceType, ProductStatus, PtaStatus } from '@prisma/client';
+import { MarketplaceStatus, ProductCondition, ProductSourceType, ProductStatus, PtaStatus, SaleMode, WarrantyType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
@@ -6,8 +6,24 @@ export class CreateProductDto {
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1)
-  @IsNotEmpty()
-  sellerId: number;
+  @IsOptional()
+  sellerId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  categoryId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  sourceId?: number;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -18,8 +34,9 @@ export class CreateProductDto {
   model: string;
 
   @IsOptional() @IsString() variant?: string;
-  @IsString() @IsNotEmpty() imei1: string;
+  @IsOptional() @IsString() imei1?: string;
   @IsOptional() @IsString() imei2?: string;
+  @IsOptional() @IsString() serialNumber?: string;
   @IsOptional() @IsString() storage?: string;
   @IsOptional() @IsString() ram?: string;
   @IsOptional() @IsString() color?: string;
@@ -47,6 +64,48 @@ export class CreateProductDto {
   expectedSalePrice?: number;
 
   @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  salePrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  minimumSalePrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  quantity?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  soldQuantity?: number;
+
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @IsOptional()
+  @IsString()
+  qrCode?: string;
+
+  @IsOptional()
+  @IsEnum(WarrantyType)
+  warrantyType?: WarrantyType;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  warrantyMonths?: number;
+
+  @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
 
@@ -59,6 +118,14 @@ export class CreateProductDto {
   @IsEnum(ProductSourceType)
   sourceType?: ProductSourceType;
 
+  @IsOptional()
+  @IsEnum(SaleMode)
+  saleMode?: SaleMode;
+
+  @IsOptional()
+  @IsEnum(MarketplaceStatus)
+  marketplaceStatus?: MarketplaceStatus;
+
   @IsOptional() @IsString() sourceName?: string;
   @IsOptional() @IsString() sourcePhone?: string;
   @IsOptional() @IsString() sourceCnic?: string;
@@ -68,8 +135,9 @@ export class CreateProductDto {
   @IsOptional() @IsString() supplierPhone?: string;
   @IsOptional() @IsString() supplierAddress?: string;
 
+  @IsOptional()
   @IsEnum(PtaStatus)
-  ptaStatus: PtaStatus;
+  ptaStatus?: PtaStatus;
 
   @IsOptional() @IsString() description?: string;
 

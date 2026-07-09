@@ -1,9 +1,15 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ShopStatus } from '@prisma/client';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateShopDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -17,9 +23,31 @@ export class CreateShopDto {
   @IsString()
   area?: string;
 
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
   @IsOptional()
   @IsString()
-  phone?: string;
+  province?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  longitude?: number;
 
   @IsOptional()
   @IsString()
@@ -27,5 +55,17 @@ export class CreateShopDto {
 
   @IsOptional()
   @IsString()
+  coverImage?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isVerified?: boolean;
+
+  @IsOptional()
+  @IsEnum(ShopStatus)
+  status?: ShopStatus;
 }
