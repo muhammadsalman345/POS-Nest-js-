@@ -38,7 +38,8 @@ export class SalesService {
       const saleItems = requestedItems.map((item) => {
         const product = products.find((found) => found.id === Number(item.productId));
         if (!product) throw new NotFoundException('Product not found');
-        if (![ProductStatus.IN_STOCK, ProductStatus.AVAILABLE, ProductStatus.RESERVED, ProductStatus.RETURNED].includes(product.status)) {
+        const allowedStatuses: ProductStatus[] = [ProductStatus.IN_STOCK, ProductStatus.AVAILABLE, ProductStatus.RESERVED, ProductStatus.RETURNED];
+        if (!allowedStatuses.includes(product.status)) {
           throw new BadRequestException(`${product.name || product.brand} is not available for sale`);
         }
         if (Number(product.availableQuantity) < Number(item.quantity)) throw new BadRequestException(`${product.name || product.brand} has insufficient stock`);

@@ -860,8 +860,8 @@ model AuditLog {
   referenceId   String?
   oldData       String?  @db.LongText
   newData       String?  @db.LongText
-  oldValues     Json?
-  newValues     Json?
+  oldValues     String?  @db.LongText
+  newValues     String?  @db.LongText
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
