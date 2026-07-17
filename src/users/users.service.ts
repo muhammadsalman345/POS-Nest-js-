@@ -4,14 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole, UserStatus } from '@prisma/client';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { AuthUser } from '../common/types/auth-user.type';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { sanitizeUser } from '../common/utils/user.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserQueryDto } from './dto/user-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -21,10 +21,12 @@ export class UsersService {
     return user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
   }
 
-  async findAll(query: PaginationDto) {
+  async findAll(current: AuthUser, query: UserQueryDto) {
     const { page, limit, skip, take } = pagination(query);
-    const where = {
+    const where: Prisma.UserWhereInput = {
       deletedAt: null,
+      ...(query.role ? { role: query.role } : {}),
+      ...(query.status ? { status: query.status } : {}),
       ...(query.search
         ? {
             OR: [
@@ -35,6 +37,20 @@ export class UsersService {
           }
         : {}),
     };
+
+    if (!this.isAdmin(current)) {
+      const ownerShopIds = await this.prisma.shop.findMany({
+        where: { ownerId: current.id, deletedAt: null },
+        select: { id: true },
+      });
+      const shopIds = ownerShopIds.map((shop) => shop.id);
+
+      where.role = UserRole.STAFF;
+      where.staff = shopIds.length
+        ? { some: { shopId: { in: shopIds } } }
+        : { some: { shopId: -1 } };
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,

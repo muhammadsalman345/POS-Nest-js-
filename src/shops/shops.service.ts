@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
+import { Prisma, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -101,15 +101,43 @@ export class ShopsService {
     return shop;
   }
 
-  private async list(query: PaginationDto, extra: Record<string, unknown>) {
+  private async list(query: PaginationDto, extra: Prisma.ShopWhereInput) {
     const { page, limit, skip, take } = pagination(query);
-    const where = {
+    const where: Prisma.ShopWhereInput = {
       ...extra,
       deletedAt: null,
-      ...(query.search ? { OR: [{ name: { contains: query.search } }, { city: { contains: query.search } }] } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search } },
+              { city: { contains: query.search } },
+              { area: { contains: query.search } },
+              { owner: { name: { contains: query.search } } },
+              { owner: { phone: { contains: query.search } } },
+            ],
+          }
+        : {}),
     };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.shop.findMany({ where, skip, take, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
+      this.prisma.shop.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { [query.sortBy || 'createdAt']: query.sortOrder },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+              role: true,
+              status: true,
+              isActive: true,
+            },
+          },
+        },
+      }),
       this.prisma.shop.count({ where }),
     ]);
     return paginated(items, total, page, limit);

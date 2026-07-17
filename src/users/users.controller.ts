@@ -3,12 +3,12 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserQueryDto } from './dto/user-query.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
@@ -19,9 +19,9 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  findAll(@Query() query: PaginationDto) {
-    return this.users.findAll(query);
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OWNER)
+  findAll(@CurrentUser() user: AuthUser, @Query() query: UserQueryDto) {
+    return this.users.findAll(user, query);
   }
 
   @Get(':id')

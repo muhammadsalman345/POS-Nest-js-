@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -16,10 +17,12 @@ export class StaffController {
 
   @Get('permissions')
   permissions() { return this.staff.permissions(); }
+  @Get('staff/roles')
+  roles() { return this.staff.roles(); }
   @Post('shops/:shopId/staff')
   create(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Body() dto: CreateStaffDto) { return this.staff.create(+shopId, user, dto); }
   @Get('shops/:shopId/staff')
-  list(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser) { return this.staff.list(+shopId, user); }
+  list(@Param('shopId') shopId: string, @CurrentUser() user: AuthUser, @Query() query: PaginationDto) { return this.staff.list(+shopId, user, query); }
   @Patch('shops/:shopId/staff/:id')
   update(@Param('shopId') shopId: string, @Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: UpdateStaffDto) { return this.staff.update(+shopId, +id, user, dto); }
   @Delete('shops/:shopId/staff/:id')
