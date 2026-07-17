@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ShopApprovalStatus, UserRole } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -7,6 +7,7 @@ import { serializeAuditData } from '../common/utils/audit.util';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateShopDto } from './dto/create-shop.dto';
+import { UpdateShopStatusDto } from './dto/update-shop-status.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
 
 @Injectable()
@@ -77,6 +78,26 @@ export class ShopsService {
       include: { owner: { select: { id: true, name: true, phone: true, email: true, role: true } } },
     });
     await this.audit(user.id, 'REVIEW', id, old, shop);
+    return shop;
+  }
+
+  async status(id: number, user: AuthUser, dto: UpdateShopStatusDto) {
+    if (dto.isActive === undefined && dto.status === undefined) {
+      throw new BadRequestException('isActive or status is required');
+    }
+
+    const old = await this.ownership.ensureShopAccess(id, user);
+    const nextIsActive = dto.isActive ?? dto.status === ShopStatus.ACTIVE;
+    const nextStatus = dto.status ?? (nextIsActive ? ShopStatus.ACTIVE : ShopStatus.INACTIVE);
+    const shop = await this.prisma.shop.update({
+      where: { id },
+      data: {
+        isActive: nextIsActive,
+        status: nextStatus,
+        updatedById: user.id,
+      },
+    });
+    await this.audit(user.id, 'STATUS', id, old, shop);
     return shop;
   }
 

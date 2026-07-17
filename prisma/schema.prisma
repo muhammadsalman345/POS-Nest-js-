@@ -3,12 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 enum UserRole {
   SUPER_ADMIN
+  OWNER
+  STAFF
   ADMIN
   USER
   SELLER
@@ -191,17 +193,17 @@ enum AlertType {
 }
 
 model User {
-  id          Int          @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   name        String
-  email       String?      @unique
-  phone       String       @unique
+  email       String?     @unique
+  phone       String      @unique
   password    String
   role        UserRole
-  status      UserStatus   @default(ACTIVE)
-  isActive    Boolean      @default(true)
+  status      UserStatus  @default(ACTIVE)
+  isActive    Boolean     @default(true)
   lastLoginAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
   shops       Shop[]
   customer    Customer?
@@ -214,52 +216,52 @@ model User {
 }
 
 model Shop {
-  id              Int                @id @default(autoincrement())
-  ownerId         Int
-  name            String
-  slug            String?            @unique
-  address         String
-  city            String
-  area            String?
-  province        String?
-  country         String?            @default("Pakistan")
-  latitude        Decimal?           @db.Decimal(10, 7)
-  longitude       Decimal?           @db.Decimal(10, 7)
-  phone           String?
-  email           String?
-  logo            String?
-  coverImage      String?
-  description     String?
-  status          ShopStatus         @default(ACTIVE)
-  isVerified      Boolean            @default(false)
-  isActive        Boolean            @default(true)
-  approvalStatus  ShopApprovalStatus @default(PENDING)
-  paymentRequired Boolean            @default(false)
-  paymentAmount   Decimal?           @db.Decimal(12, 2)
-  approvedAt      DateTime?
-  approvedById    Int?
-  rejectionReason String?
-  createdById     Int?
-  updatedById     Int?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  deletedAt       DateTime?
-  owner           User               @relation(fields: [ownerId], references: [id])
-  sellers         Seller[]
-  products        Product[]
-  purchases       Purchase[]
-  sales           Sale[]
-  expenses        Expense[]
-  sources         Source[]
-  customers       Customer[]
-  imeiHistories   ImeiHistory[]
-  warranties      Warranty[]
-  warrantyClaims  WarrantyClaim[]
-  repairs         Repair[]
+  id                Int                @id @default(autoincrement())
+  ownerId           Int
+  name              String
+  slug              String?            @unique
+  address           String
+  city              String
+  area              String?
+  province          String?
+  country           String?            @default("Pakistan")
+  latitude          Decimal?
+  longitude         Decimal?
+  phone             String?
+  email             String?
+  logo              String?
+  coverImage        String?
+  description       String?
+  status            ShopStatus         @default(ACTIVE)
+  isVerified        Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  approvalStatus    ShopApprovalStatus @default(PENDING)
+  paymentRequired   Boolean            @default(false)
+  paymentAmount     Decimal?
+  approvedAt        DateTime?
+  approvedById      Int?
+  rejectionReason   String?
+  createdById       Int?
+  updatedById       Int?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
+  owner             User               @relation(fields: [ownerId], references: [id])
+  sellers           Seller[]
+  products          Product[]
+  purchases         Purchase[]
+  sales             Sale[]
+  expenses          Expense[]
+  sources           Source[]
+  customers         Customer[]
+  imeiHistories     ImeiHistory[]
+  warranties        Warranty[]
+  warrantyClaims    WarrantyClaim[]
+  repairs           Repair[]
   expenseCategories ExpenseCategory[]
-  staff           ShopStaff[]
-  alerts          Alert[]
-  auditLogs       AuditLog[]
+  staff             ShopStaff[]
+  alerts            Alert[]
+  auditLogs         AuditLog[]
 
   @@index([ownerId])
   @@index([status])
@@ -269,20 +271,20 @@ model Shop {
 }
 
 model Category {
-  id          Int       @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   parentId    Int?
   name        String
-  slug        String    @unique
+  slug        String       @unique
   description String?
   image       String?
   status      RecordStatus @default(ACTIVE)
   createdById Int?
   updatedById Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
-  parent      Category? @relation("CategoryTree", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryTree")
+  parent      Category?    @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]   @relation("CategoryTree")
   products    Product[]
 
   @@index([parentId])
@@ -291,7 +293,7 @@ model Category {
 }
 
 model Source {
-  id             Int         @id @default(autoincrement())
+  id             Int          @id @default(autoincrement())
   shopId         Int
   type           SourceType
   name           String
@@ -306,18 +308,18 @@ model Source {
   address        String?
   city           String?
   province       String?
-  country        String?     @default("Pakistan")
-  latitude       Decimal?    @db.Decimal(10, 7)
-  longitude      Decimal?    @db.Decimal(10, 7)
+  country        String?      @default("Pakistan")
+  latitude       Decimal?
+  longitude      Decimal?
   taxNumber      String?
   notes          String?
   status         RecordStatus @default(ACTIVE)
   createdById    Int?
   updatedById    Int?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
-  shop           Shop        @relation(fields: [shopId], references: [id])
+  shop           Shop         @relation(fields: [shopId], references: [id])
   products       Product[]
   purchases      Purchase[]
 
@@ -329,22 +331,22 @@ model Source {
 }
 
 model Seller {
-  id              Int        @id @default(autoincrement())
-  shopId          Int
-  name            String
-  fatherName      String?
-  cnic            String
-  phone           String
-  address         String
-  cnicFrontImage  String?
-  cnicBackImage   String?
-  photo           String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  deletedAt       DateTime?
-  shop            Shop       @relation(fields: [shopId], references: [id])
-  products        Product[]
-  purchases       Purchase[]
+  id             Int        @id @default(autoincrement())
+  shopId         Int
+  name           String
+  fatherName     String?
+  cnic           String
+  phone          String
+  address        String
+  cnicFrontImage String?
+  cnicBackImage  String?
+  photo          String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+  shop           Shop       @relation(fields: [shopId], references: [id])
+  products       Product[]
+  purchases      Purchase[]
 
   @@index([shopId])
   @@index([cnic])
@@ -353,36 +355,36 @@ model Seller {
 }
 
 model Customer {
-  id              Int       @id @default(autoincrement())
-  shopId          Int?
-  userId          Int?      @unique
-  name            String
-  fatherName      String?
-  phone           String
-  email           String?
-  cnic            String?
-  cnicFrontImage  String?
-  cnicBackImage   String?
-  selfieImage     String?
-  address         String?
-  city            String?
-  province        String?
-  country         String?   @default("Pakistan")
-  latitude        Decimal?  @db.Decimal(10, 7)
-  longitude       Decimal?  @db.Decimal(10, 7)
-  notes           String?
-  createdById     Int?
-  updatedById     Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
-  user            User?     @relation(fields: [userId], references: [id])
-  shop            Shop?     @relation(fields: [shopId], references: [id])
-  sales           Sale[]
-  payments        Payment[]
-  warranties      Warranty[]
-  warrantyClaims  WarrantyClaim[]
-  repairs         Repair[]
+  id             Int             @id @default(autoincrement())
+  shopId         Int?
+  userId         Int?            @unique
+  name           String
+  fatherName     String?
+  phone          String
+  email          String?
+  cnic           String?
+  cnicFrontImage String?
+  cnicBackImage  String?
+  selfieImage    String?
+  address        String?
+  city           String?
+  province       String?
+  country        String?         @default("Pakistan")
+  latitude       Decimal?
+  longitude      Decimal?
+  notes          String?
+  createdById    Int?
+  updatedById    Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  user           User?           @relation(fields: [userId], references: [id])
+  shop           Shop?           @relation(fields: [shopId], references: [id])
+  sales          Sale[]
+  payments       Payment[]
+  warranties     Warranty[]
+  warrantyClaims WarrantyClaim[]
+  repairs        Repair[]
 
   @@index([shopId])
   @@index([phone])
@@ -391,70 +393,70 @@ model Customer {
 }
 
 model Product {
-  id                   Int               @id @default(autoincrement())
-  shopId               Int
-  sellerId             Int?
-  categoryId           Int?
-  sourceId             Int?
-  name                 String?
-  brand                String
-  model                String
-  variant              String?
-  imei1                String?           @unique
-  imei2                String?           @unique
-  serialNumber         String?           @unique
-  storage              String?
-  ram                  String?
-  color                String?
-  condition            ProductCondition
-  batteryHealth        Int?
-  accessories          String?
-  purchasePrice        Decimal           @db.Decimal(12, 2)
-  expectedSalePrice    Decimal?          @db.Decimal(12, 2)
-  salePrice            Decimal?          @db.Decimal(12, 2)
-  minimumSalePrice     Decimal?          @db.Decimal(12, 2)
-  finalSalePrice       Decimal?          @db.Decimal(12, 2)
-  quantity             Int               @default(1)
-  soldQuantity         Int               @default(0)
-  availableQuantity    Int               @default(1)
-  barcode              String?           @unique
-  qrCode               String?           @db.Text
-  warrantyType         WarrantyType      @default(NONE)
-  warrantyMonths       Int?
-  onlineSaleEnabled    Boolean           @default(false)
-  saleMode             SaleMode          @default(OFFLINE_ONLY)
-  marketplaceStatus    MarketplaceStatus @default(HIDDEN)
-  sourceType           ProductSourceType @default(CUSTOMER)
-  sourceName           String?
-  sourcePhone          String?
-  sourceCnic           String?
-  sourceAddress        String?
-  supplierBusinessName String?
+  id                    Int               @id @default(autoincrement())
+  shopId                Int
+  sellerId              Int?
+  categoryId            Int?
+  sourceId              Int?
+  name                  String?
+  brand                 String
+  model                 String
+  variant               String?
+  imei1                 String?           @unique
+  imei2                 String?           @unique
+  serialNumber          String?           @unique
+  storage               String?
+  ram                   String?
+  color                 String?
+  condition             ProductCondition
+  batteryHealth         Int?
+  accessories           String?
+  purchasePrice         Decimal
+  expectedSalePrice     Decimal?
+  salePrice             Decimal?
+  minimumSalePrice      Decimal?
+  finalSalePrice        Decimal?
+  quantity              Int               @default(1)
+  soldQuantity          Int               @default(0)
+  availableQuantity     Int               @default(1)
+  barcode               String?           @unique
+  qrCode                String?
+  warrantyType          WarrantyType      @default(NONE)
+  warrantyMonths        Int?
+  onlineSaleEnabled     Boolean           @default(false)
+  saleMode              SaleMode          @default(OFFLINE_ONLY)
+  marketplaceStatus     MarketplaceStatus @default(HIDDEN)
+  sourceType            ProductSourceType @default(CUSTOMER)
+  sourceName            String?
+  sourcePhone           String?
+  sourceCnic            String?
+  sourceAddress         String?
+  supplierBusinessName  String?
   supplierContactPerson String?
-  supplierPhone        String?
-  supplierAddress      String?
-  status               ProductStatus     @default(IN_STOCK)
-  ptaStatus            PtaStatus         @default(UNKNOWN)
-  description          String?
-  purchaseDate         DateTime
-  createdById          Int?
-  updatedById          Int?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  deletedAt            DateTime?
-  shop                 Shop              @relation(fields: [shopId], references: [id])
-  seller               Seller?           @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  category             Category?         @relation(fields: [categoryId], references: [id])
-  source               Source?           @relation(fields: [sourceId], references: [id])
-  images               ProductImage[]
-  purchase             Purchase?
-  sales                Sale[]
-  saleItems            SaleItem[]
-  expenses             Expense[]
-  imeiHistories        ImeiHistory[]
-  warranties           Warranty[]
-  warrantyClaims       WarrantyClaim[]
-  repairs              Repair[]
+  supplierPhone         String?
+  supplierAddress       String?
+  status                ProductStatus     @default(IN_STOCK)
+  ptaStatus             PtaStatus         @default(UNKNOWN)
+  description           String?
+  purchaseDate          DateTime
+  createdById           Int?
+  updatedById           Int?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  deletedAt             DateTime?
+  shop                  Shop              @relation(fields: [shopId], references: [id])
+  seller                Seller?           @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  category              Category?         @relation(fields: [categoryId], references: [id])
+  source                Source?           @relation(fields: [sourceId], references: [id])
+  images                ProductImage[]
+  purchase              Purchase?
+  sales                 Sale[]
+  saleItems             SaleItem[]
+  expenses              Expense[]
+  imeiHistories         ImeiHistory[]
+  warranties            Warranty[]
+  warrantyClaims        WarrantyClaim[]
+  repairs               Repair[]
 
   @@index([shopId])
   @@index([sellerId])
@@ -490,7 +492,7 @@ model Purchase {
   sellerId      Int?
   sourceId      Int?
   productId     Int       @unique
-  purchasePrice Decimal   @db.Decimal(12, 2)
+  purchasePrice Decimal
   purchaseDate  DateTime
   notes         String?
   receiptNumber String    @unique
@@ -511,38 +513,38 @@ model Purchase {
 }
 
 model Sale {
-  id              Int           @id @default(autoincrement())
-  shopId          Int
-  productId       Int?
-  customerId      Int
-  salePrice       Decimal?      @db.Decimal(12, 2)
-  paymentMethod   PaymentMethod
-  saleType        SaleType
-  warrantyDays    Int           @default(0)
-  invoiceNumber   String        @unique
-  invoiceNo       String?       @unique
-  saleDate        DateTime      @default(now())
-  subtotal        Decimal       @default(0) @db.Decimal(12, 2)
-  discountType    DiscountType?
-  discountAmount  Decimal       @default(0) @db.Decimal(12, 2)
-  taxAmount       Decimal       @default(0) @db.Decimal(12, 2)
-  totalAmount     Decimal       @default(0) @db.Decimal(12, 2)
-  paidAmount      Decimal       @default(0) @db.Decimal(12, 2)
-  dueAmount       Decimal       @default(0) @db.Decimal(12, 2)
-  paymentStatus   PaymentStatus @default(UNPAID)
-  status          SaleStatus    @default(COMPLETED)
-  notes           String?
-  createdById     Int?
-  updatedById     Int?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
-  shop            Shop          @relation(fields: [shopId], references: [id])
-  product         Product?      @relation(fields: [productId], references: [id], onDelete: Restrict)
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  items           SaleItem[]
-  payments        Payment[]
-  warranties      Warranty[]
+  id             Int           @id @default(autoincrement())
+  shopId         Int
+  productId      Int?
+  customerId     Int
+  salePrice      Decimal?
+  paymentMethod  PaymentMethod
+  saleType       SaleType
+  warrantyDays   Int           @default(0)
+  invoiceNumber  String        @unique
+  invoiceNo      String?       @unique
+  saleDate       DateTime      @default(now())
+  subtotal       Decimal       @default(0)
+  discountType   DiscountType?
+  discountAmount Decimal       @default(0)
+  taxAmount      Decimal       @default(0)
+  totalAmount    Decimal       @default(0)
+  paidAmount     Decimal       @default(0)
+  dueAmount      Decimal       @default(0)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  status         SaleStatus    @default(COMPLETED)
+  notes          String?
+  createdById    Int?
+  updatedById    Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+  shop           Shop          @relation(fields: [shopId], references: [id])
+  product        Product?      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  items          SaleItem[]
+  payments       Payment[]
+  warranties     Warranty[]
 
   @@index([shopId])
   @@index([productId])
@@ -554,19 +556,19 @@ model Sale {
 }
 
 model SaleItem {
-  id             Int      @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   saleId         Int
   productId      Int
   productName    String
   imei1          String?
   imei2          String?
   serialNumber   String?
-  quantity       Int      @default(1)
-  unitPrice      Decimal  @db.Decimal(12, 2)
-  discountAmount Decimal  @default(0) @db.Decimal(12, 2)
-  totalPrice     Decimal  @db.Decimal(12, 2)
-  sale           Sale     @relation(fields: [saleId], references: [id])
-  product        Product  @relation(fields: [productId], references: [id])
+  quantity       Int     @default(1)
+  unitPrice      Decimal
+  discountAmount Decimal @default(0)
+  totalPrice     Decimal
+  sale           Sale    @relation(fields: [saleId], references: [id])
+  product        Product @relation(fields: [productId], references: [id])
 
   @@index([saleId])
   @@index([productId])
@@ -577,7 +579,7 @@ model Payment {
   shopId        Int
   saleId        Int
   customerId    Int
-  amount        Decimal       @db.Decimal(12, 2)
+  amount        Decimal
   paymentMethod PaymentMethod
   referenceNo   String?
   paymentDate   DateTime      @default(now())
@@ -619,7 +621,7 @@ model ImeiHistory {
 }
 
 model Warranty {
-  id             Int            @id @default(autoincrement())
+  id             Int             @id @default(autoincrement())
   shopId         Int
   productId      Int
   saleId         Int?
@@ -630,15 +632,15 @@ model Warranty {
   warrantyMonths Int
   invoiceNo      String?
   terms          String?
-  status         WarrantyStatus @default(ACTIVE)
+  status         WarrantyStatus  @default(ACTIVE)
   createdById    Int?
   updatedById    Int?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  shop           Shop           @relation(fields: [shopId], references: [id])
-  product        Product        @relation(fields: [productId], references: [id])
-  sale           Sale?          @relation(fields: [saleId], references: [id])
-  customer       Customer?      @relation(fields: [customerId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  shop           Shop            @relation(fields: [shopId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  sale           Sale?           @relation(fields: [saleId], references: [id])
+  customer       Customer?       @relation(fields: [customerId], references: [id])
   claims         WarrantyClaim[]
 
   @@index([shopId])
@@ -677,33 +679,33 @@ model WarrantyClaim {
 }
 
 model Repair {
-  id                   Int          @id @default(autoincrement())
+  id                   Int           @id @default(autoincrement())
   shopId               Int
   customerId           Int
   productId            Int?
-  ticketNo             String       @unique
+  ticketNo             String        @unique
   deviceName           String
   brand                String?
   model                String?
   imei1                String?
   serialNumber         String?
   problemDescription   String
-  estimatedCost        Decimal?     @db.Decimal(12, 2)
-  finalCost            Decimal?     @db.Decimal(12, 2)
+  estimatedCost        Decimal?
+  finalCost            Decimal?
   technicianId         Int?
-  status               RepairStatus @default(RECEIVED)
-  receivedDate         DateTime     @default(now())
+  status               RepairStatus  @default(RECEIVED)
+  receivedDate         DateTime      @default(now())
   expectedDeliveryDate DateTime?
   deliveredAt          DateTime?
   notes                String?
   createdById          Int?
   updatedById          Int?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
   deletedAt            DateTime?
-  shop                 Shop         @relation(fields: [shopId], references: [id])
-  customer             Customer     @relation(fields: [customerId], references: [id])
-  product              Product?     @relation(fields: [productId], references: [id])
+  shop                 Shop          @relation(fields: [shopId], references: [id])
+  customer             Customer      @relation(fields: [customerId], references: [id])
+  product              Product?      @relation(fields: [productId], references: [id])
   images               RepairImage[]
 
   @@index([shopId])
@@ -735,30 +737,30 @@ model ExpenseCategory {
   shop      Shop?        @relation(fields: [shopId], references: [id])
   expenses  Expense[]
 
-  @@index([shopId])
   @@unique([shopId, name])
+  @@index([shopId])
 }
 
 model Expense {
-  id                Int            @id @default(autoincrement())
+  id                Int              @id @default(autoincrement())
   shopId            Int
   productId         Int?
   expenseCategoryId Int?
   title             String
-  amount            Decimal        @db.Decimal(12, 2)
+  amount            Decimal
   type              String
   paymentMethod     PaymentMethod?
   referenceNo       String?
-  expenseDate       DateTime       @default(now())
+  expenseDate       DateTime         @default(now())
   description       String?
   attachment        String?
   createdById       Int?
   updatedById       Int?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
   deletedAt         DateTime?
-  shop              Shop           @relation(fields: [shopId], references: [id])
-  product           Product?       @relation(fields: [productId], references: [id])
+  shop              Shop             @relation(fields: [shopId], references: [id])
+  product           Product?         @relation(fields: [productId], references: [id])
   category          ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
 
   @@index([shopId])
@@ -858,8 +860,8 @@ model AuditLog {
   recordId      String?
   referenceType String?
   referenceId   String?
-  oldData       String?  @db.LongText
-  newData       String?  @db.LongText
+  oldData       String?
+  newData       String?
   oldValues     Json?
   newValues     Json?
   ipAddress     String?

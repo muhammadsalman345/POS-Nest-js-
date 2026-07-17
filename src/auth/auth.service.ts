@@ -1,7 +1,14 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '@prisma/client';
+import { User, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { sanitizeUser } from '../common/utils/user.util';
@@ -19,7 +26,9 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    if (dto.role === UserRole.SUPER_ADMIN || dto.role === UserRole.ADMIN) throw new BadRequestException('Admin registration is not public');
+    if (dto.role && dto.role !== UserRole.OWNER) {
+      throw new BadRequestException('Only owner registration is public');
+    }
     if (dto.confirmPassword && dto.confirmPassword !== dto.password) {
       throw new BadRequestException('Password confirmation does not match');
     }
@@ -27,26 +36,59 @@ export class AuthService {
     const { confirmPassword, ...data } = dto;
     void confirmPassword;
     const user = await this.prisma.user.create({
-      data: { ...data, role: data.role || UserRole.USER, password: await bcrypt.hash(dto.password, 10) },
+      data: {
+        ...data,
+        role: UserRole.OWNER,
+        status: UserStatus.PENDING,
+        isActive: false,
+        password: await bcrypt.hash(dto.password, 10),
+      },
     });
-    return this.authResponse(user);
+    return {
+      token: null,
+      user: sanitizeUser(user),
+      message:
+        'Owner account created. Your account is pending super admin approval.',
+    };
   }
 
   async login(dto: LoginDto) {
-    if (!dto.phone && !dto.email) throw new BadRequestException('Phone or email is required');
+    if (!dto.phone && !dto.email)
+      throw new BadRequestException('Phone or email is required');
     const user = await this.prisma.user.findFirst({
       where: {
         deletedAt: null,
-        OR: [{ phone: dto.phone || undefined }, { email: dto.email || undefined }],
+        OR: [
+          { phone: dto.phone || undefined },
+          { email: dto.email || undefined },
+        ],
       },
     });
-    if (!user || !user.isActive || user.status !== 'ACTIVE' || !(await bcrypt.compare(dto.password, user.password))) {
+    if (!user || !(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (user.status === UserStatus.PENDING) {
+      throw new ForbiddenException(
+        'Your account is pending super admin approval.',
+      );
+    }
+    if (!user.isActive || user.status === UserStatus.BLOCKED) {
+      throw new ForbiddenException(
+        'Your account is inactive. Contact super admin.',
+      );
+    }
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      }),
       this.prisma.auditLog.create({
-        data: { userId: user.id, action: 'LOGIN', module: 'AUTH', recordId: String(user.id) },
+        data: {
+          userId: user.id,
+          action: 'LOGIN',
+          module: 'AUTH',
+          recordId: String(user.id),
+        },
       }),
     ]);
     return this.authResponse(user);
@@ -59,7 +101,9 @@ export class AuthService {
   }
 
   async changePassword(user: AuthUser, dto: ChangePasswordDto) {
-    const found = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    const found = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
     if (!(await bcrypt.compare(dto.currentPassword, found.password))) {
       throw new UnauthorizedException('Current password is incorrect');
     }
@@ -70,8 +114,27 @@ export class AuthService {
     return { message: 'Password changed successfully' };
   }
 
-  async updateProfile(user: AuthUser, dto: { name?: string; email?: string; phone?: string }) {
-    const updated = await this.prisma.user.update({ where: { id: user.id }, data: dto });
+  async updateProfile(
+    user: AuthUser,
+    dto: { name?: string; email?: string; phone?: string },
+  ) {
+    if (dto.phone || dto.email) {
+      const exists = await this.prisma.user.findFirst({
+        where: {
+          id: { not: user.id },
+          deletedAt: null,
+          OR: [
+            ...(dto.phone ? [{ phone: dto.phone }] : []),
+            ...(dto.email ? [{ email: dto.email }] : []),
+          ],
+        },
+      });
+      if (exists) throw new ConflictException('Phone or email already exists');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: dto,
+    });
     return sanitizeUser(updated);
   }
 
@@ -87,7 +150,7 @@ export class AuthService {
     if (exists) throw new ConflictException('Phone or email already exists');
   }
 
-  private authResponse(user: { id: number; phone: string; email: string | null; role: UserRole; password?: string }) {
+  private authResponse(user: User) {
     return {
       token: this.jwt.sign(
         { sub: user.id, role: user.role },

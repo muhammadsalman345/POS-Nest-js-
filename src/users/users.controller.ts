@@ -41,8 +41,8 @@ export class UsersController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  status(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) {
-    return this.users.status(+id, dto);
+  @Roles(UserRole.SUPER_ADMIN)
+  status(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: UpdateUserStatusDto) {
+    return this.users.status(+id, user, dto);
   }
 }

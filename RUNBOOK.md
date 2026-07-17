@@ -8,21 +8,23 @@ npm install
 
 ## Configure
 
-Copy `.env.example` to `.env` and set a MySQL database URL:
+Copy `.env.example` to `.env`:
 
 ```env
-DATABASE_URL="mysql://root:password@localhost:3306/second_hand_mobile_pos"
-JWT_SECRET="change-me-in-production"
+DATABASE_URL="file:./dev.db"
+JWT_SECRET="change-me-in-development"
 JWT_EXPIRES_IN="7d"
 PORT=3000
+FRONTEND_URL="http://localhost:8100,http://localhost:4200"
 ```
 
 ## Prisma
 
 ```bash
-npx prisma generate
-npx prisma migrate dev --name init
-npx prisma db seed
+npm run prisma:generate
+touch prisma/dev.db
+npx prisma db push
+npm run db:seed
 ```
 
 ## Run

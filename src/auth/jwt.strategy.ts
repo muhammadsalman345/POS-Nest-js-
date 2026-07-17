@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: { sub: number }) {
     const user = await this.prisma.user.findFirst({
-      where: { id: payload.sub, deletedAt: null, isActive: true },
+      where: { id: payload.sub, deletedAt: null, isActive: true, status: 'ACTIVE' },
       select: { id: true, phone: true, email: true, role: true },
     });
     if (!user) throw new UnauthorizedException('Invalid token');

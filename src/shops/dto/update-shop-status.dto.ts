@@ -1,12 +1,12 @@
-import { UserStatus } from '@prisma/client';
+import { ShopStatus } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 
-export class UpdateUserStatusDto {
+export class UpdateShopStatusDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
-  @IsEnum(UserStatus)
-  status?: UserStatus;
+  @IsEnum(ShopStatus)
+  status?: ShopStatus;
 }

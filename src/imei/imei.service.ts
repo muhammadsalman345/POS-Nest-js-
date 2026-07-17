@@ -14,7 +14,7 @@ export class ImeiService {
       include: { product: true, shop: true },
       orderBy: { createdAt: 'desc' },
     });
-    const visible = [];
+    const visible: typeof events = [];
     for (const event of events) {
       if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN) {
         visible.push(event);

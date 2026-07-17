@@ -35,10 +35,16 @@ export class SalesService {
         where: { id: { in: requestedItems.map((item) => Number(item.productId)) }, shopId, deletedAt: null },
       });
       if (products.length !== requestedItems.length) throw new NotFoundException('One or more products were not found in this shop');
+      const saleableStatuses: ProductStatus[] = [
+        ProductStatus.IN_STOCK,
+        ProductStatus.AVAILABLE,
+        ProductStatus.RESERVED,
+        ProductStatus.RETURNED,
+      ];
       const saleItems = requestedItems.map((item) => {
         const product = products.find((found) => found.id === Number(item.productId));
         if (!product) throw new NotFoundException('Product not found');
-        if (![ProductStatus.IN_STOCK, ProductStatus.AVAILABLE, ProductStatus.RESERVED, ProductStatus.RETURNED].includes(product.status)) {
+        if (!saleableStatuses.includes(product.status)) {
           throw new BadRequestException(`${product.name || product.brand} is not available for sale`);
         }
         if (Number(product.availableQuantity) < Number(item.quantity)) throw new BadRequestException(`${product.name || product.brand} has insufficient stock`);

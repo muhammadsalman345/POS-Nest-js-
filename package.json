@@ -1,5 +1,5 @@
 {
-  "name": "listify",
+  "name": "pos-nest-js",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -12,6 +12,10 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
