@@ -66,7 +66,7 @@ export class StaffService {
           staffPermissions: this.permissionCreateInput(permissionIds),
         },
       });
-      return tx.shopStaff.findUniqueOrThrow({ where: { id: staff.id }, include: this.staffInclude });
+      return this.sanitizeStaff(await tx.shopStaff.findUniqueOrThrow({ where: { id: staff.id }, include: this.staffInclude }));
     });
   }
 
@@ -122,7 +122,7 @@ export class StaffService {
           ...(permissionIds ? { staffPermissions: this.permissionCreateInput(permissionIds) } : {}),
         },
       });
-      return tx.shopStaff.findUniqueOrThrow({ where: { id }, include: this.staffInclude });
+      return this.sanitizeStaff(await tx.shopStaff.findUniqueOrThrow({ where: { id }, include: this.staffInclude }));
     });
   }
 

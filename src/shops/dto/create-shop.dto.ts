@@ -11,21 +11,21 @@ export class CreateShopDto {
   @IsString()
   slug?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  address: string;
+  address?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  city: string;
+  city?: string;
 
   @IsOptional()
   @IsString()
   area?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @IsEmail()

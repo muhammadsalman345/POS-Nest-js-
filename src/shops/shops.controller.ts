@@ -6,19 +6,24 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { ReviewShopDto } from './dto/review-shop.dto';
+import { shopImageSlotFromRequest, shopImageUploadOptions } from './shop-image-upload';
+import { ShopQueryDto } from './dto/shop-query.dto';
 import { UpdateShopStatusDto } from './dto/update-shop-status.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
 import { ShopsService } from './shops.service';
@@ -42,6 +47,33 @@ export class ShopsController {
     return this.shops.create(user, dto);
   }
 
+  @Post('images/:slot')
+  @Roles(
+    UserRole.OWNER,
+    UserRole.SELLER,
+    UserRole.USER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @UseInterceptors(FileInterceptor('image', shopImageUploadOptions))
+  uploadImage(@Param('slot') slotParam: string, @UploadedFile() file: any) {
+    const slot = shopImageSlotFromRequest(slotParam);
+    return this.shops.uploadedImage(slot, file);
+  }
+
+  @Delete('images/:slot')
+  @Roles(
+    UserRole.OWNER,
+    UserRole.SELLER,
+    UserRole.USER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  deleteImage(@Param('slot') slotParam: string, @Query('path') path: string) {
+    const slot = shopImageSlotFromRequest(slotParam);
+    return this.shops.deleteUploadedImage(slot, path);
+  }
+
   @Get('my')
   @Roles(
     UserRole.OWNER,
@@ -50,12 +82,12 @@ export class ShopsController {
     UserRole.ADMIN,
     UserRole.SUPER_ADMIN,
   )
-  my(@CurrentUser() user: AuthUser, @Query() query: PaginationDto) {
+  my(@CurrentUser() user: AuthUser, @Query() query: ShopQueryDto) {
     return this.shops.my(user, query);
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query() query: PaginationDto) {
+  findAll(@CurrentUser() user: AuthUser, @Query() query: ShopQueryDto) {
     return this.shops.findAll(user, query);
   }
 
@@ -75,7 +107,7 @@ export class ShopsController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
   status(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
@@ -86,6 +118,15 @@ export class ShopsController {
 
   @Patch(':id')
   update(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateShopDto,
+  ) {
+    return this.shops.update(+id, user, dto);
+  }
+
+  @Put(':id')
+  replace(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateShopDto,

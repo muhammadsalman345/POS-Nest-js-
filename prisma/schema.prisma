@@ -75,6 +75,7 @@ enum ShopApprovalStatus {
 }
 
 enum ShopStatus {
+  DRAFT
   ACTIVE
   INACTIVE
   BLOCKED

@@ -1,14 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { existsSync, unlinkSync } from 'fs';
+import { join, normalize } from 'path';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { serializeAuditData } from '../common/utils/audit.util';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateShopDto } from './dto/create-shop.dto';
+import { ShopQueryDto } from './dto/shop-query.dto';
 import { UpdateShopStatusDto } from './dto/update-shop-status.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { ShopImageSlot, shopImagePath } from './shop-image-upload';
 
 @Injectable()
 export class ShopsService {
@@ -19,27 +22,35 @@ export class ShopsService {
 
   async create(user: AuthUser, dto: CreateShopDto) {
     const isSuperAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+    const status = dto.status ?? ShopStatus.ACTIVE;
+    const slug = dto.slug || this.slug(dto.name);
+    this.validateActivePayload({ ...dto, status });
+    await this.ensureUniqueShopFields({ slug, email: dto.email, phone: dto.phone });
     const shop = await this.prisma.shop.create({
       data: {
         ...dto,
-        slug: dto.slug || this.slug(dto.name),
+        slug,
+        address: dto.address?.trim() || '',
+        city: dto.city?.trim() || '',
+        phone: dto.phone?.trim() || null,
+        status,
+        isActive: status === ShopStatus.ACTIVE && isSuperAdmin,
         ownerId: user.id,
         createdById: user.id,
-        isActive: isSuperAdmin,
-        approvalStatus: isSuperAdmin ? ShopApprovalStatus.APPROVED : ShopApprovalStatus.PENDING,
-        approvedAt: isSuperAdmin ? new Date() : undefined,
-        approvedById: isSuperAdmin ? user.id : undefined,
+        approvalStatus: status === ShopStatus.DRAFT ? ShopApprovalStatus.PENDING : isSuperAdmin ? ShopApprovalStatus.APPROVED : ShopApprovalStatus.PENDING,
+        approvedAt: status === ShopStatus.ACTIVE && isSuperAdmin ? new Date() : undefined,
+        approvedById: status === ShopStatus.ACTIVE && isSuperAdmin ? user.id : undefined,
       },
     });
     await this.audit(user.id, 'CREATE', shop.id, null, shop);
     return shop;
   }
 
-  async my(user: AuthUser, query: PaginationDto) {
+  async my(user: AuthUser, query: ShopQueryDto) {
     return this.list(query, { ownerId: user.id });
   }
 
-  async findAll(user: AuthUser, query: PaginationDto) {
+  async findAll(user: AuthUser, query: ShopQueryDto) {
     return this.list(query, user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN ? {} : { ownerId: user.id });
   }
 
@@ -49,7 +60,27 @@ export class ShopsService {
 
   async update(id: number, user: AuthUser, dto: UpdateShopDto) {
     const old = await this.ownership.ensureShopAccess(id, user);
-    const shop = await this.prisma.shop.update({ where: { id }, data: { ...dto, slug: dto.slug || (dto.name ? this.slug(dto.name) : undefined), updatedById: user.id } });
+    const nextStatus = dto.status ?? old.status;
+    const slug = dto.slug || (dto.name ? this.slug(dto.name) : undefined);
+    this.validateActivePayload({ ...old, ...dto, status: nextStatus } as CreateShopDto);
+    await this.ensureUniqueShopFields(
+      { slug, email: dto.email, phone: dto.phone },
+      id,
+    );
+    const shop = await this.prisma.shop.update({
+      where: { id },
+      data: {
+        ...dto,
+        slug,
+        address: dto.address?.trim(),
+        city: dto.city?.trim(),
+        phone: dto.phone?.trim() || (dto.phone === '' ? null : undefined),
+        isActive: nextStatus === ShopStatus.ACTIVE,
+        updatedById: user.id,
+      },
+    });
+    this.deleteReplacedImage(old.logo, shop.logo);
+    this.deleteReplacedImage(old.coverImage, shop.coverImage);
     await this.audit(user.id, 'UPDATE', id, old, shop);
     return shop;
   }
@@ -57,8 +88,37 @@ export class ShopsService {
   async remove(id: number, user: AuthUser) {
     const old = await this.ownership.ensureShopAccess(id, user);
     await this.prisma.shop.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    this.deleteStoredImage(old.logo);
+    this.deleteStoredImage(old.coverImage);
     await this.audit(user.id, 'DELETE', id, old, null);
     return { message: 'Shop deleted' };
+  }
+
+  uploadedImage(slot: ShopImageSlot, file: any) {
+    if (!file?.filename) {
+      throw new BadRequestException('Image file is required.');
+    }
+
+    const path = shopImagePath(slot, file.filename);
+    return {
+      path,
+      filename: file.filename,
+      size: file.size,
+      mimetype: file.mimetype,
+    };
+  }
+
+  deleteUploadedImage(slot: ShopImageSlot, path: string) {
+    if (!path) {
+      throw new BadRequestException('Image path is required.');
+    }
+
+    if (!path.startsWith(`/uploads/shops/${slot}/`)) {
+      throw new BadRequestException('Image path does not match the requested slot.');
+    }
+
+    this.deleteStoredImage(path);
+    return { message: 'Image deleted' };
   }
 
   async review(id: number, user: AuthUser, dto: { approvalStatus: ShopApprovalStatus; paymentRequired?: boolean; paymentAmount?: number; rejectionReason?: string }) {
@@ -101,11 +161,12 @@ export class ShopsService {
     return shop;
   }
 
-  private async list(query: PaginationDto, extra: Prisma.ShopWhereInput) {
+  private async list(query: ShopQueryDto, extra: Prisma.ShopWhereInput) {
     const { page, limit, skip, take } = pagination(query);
     const where: Prisma.ShopWhereInput = {
       ...extra,
       deletedAt: null,
+      ...(query.status ? { status: query.status } : {}),
       ...(query.search
         ? {
             OR: [
@@ -123,7 +184,7 @@ export class ShopsService {
         where,
         skip,
         take,
-        orderBy: { [query.sortBy || 'createdAt']: query.sortOrder },
+        orderBy: { [this.safeSortBy(query.sortBy)]: query.sortOrder },
         include: {
           owner: {
             select: {
@@ -151,5 +212,91 @@ export class ShopsService {
 
   private slug(value: string) {
     return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+
+  private validateActivePayload(dto: CreateShopDto) {
+    if (dto.status === ShopStatus.DRAFT) {
+      return;
+    }
+
+    const missingFields = [
+      !dto.name?.trim() ? 'Shop name' : '',
+      !dto.slug?.trim() ? 'Shop code' : '',
+      !dto.phone?.trim() ? 'Phone' : '',
+      !dto.email?.trim() ? 'Email' : '',
+      !dto.address?.trim() ? 'Address' : '',
+      !dto.city?.trim() ? 'City' : '',
+      dto.latitude === undefined || dto.latitude === null ? 'Latitude' : '',
+      dto.longitude === undefined || dto.longitude === null ? 'Longitude' : '',
+      !dto.logo?.trim() ? 'Shop logo' : '',
+      !dto.coverImage?.trim() ? 'Shop cover image' : '',
+    ].filter(Boolean);
+
+    if (missingFields.length) {
+      throw new BadRequestException(`${missingFields.join(', ')} required.`);
+    }
+  }
+
+  private async ensureUniqueShopFields(
+    fields: { slug?: string; email?: string | null; phone?: string | null },
+    ignoreId?: number,
+  ) {
+    const checks: Prisma.ShopWhereInput[] = [];
+
+    if (fields.slug?.trim()) checks.push({ slug: fields.slug.trim() });
+    if (fields.email?.trim()) checks.push({ email: fields.email.trim().toLowerCase() });
+    if (fields.phone?.trim()) checks.push({ phone: fields.phone.trim() });
+
+    if (!checks.length) return;
+
+    const existing = await this.prisma.shop.findFirst({
+      where: {
+        deletedAt: null,
+        id: ignoreId ? { not: ignoreId } : undefined,
+        OR: checks,
+      },
+    });
+
+    if (!existing) return;
+
+    if (fields.slug && existing.slug === fields.slug) {
+      throw new ConflictException('Shop code already exists.');
+    }
+
+    if (fields.email && existing.email === fields.email.trim().toLowerCase()) {
+      throw new ConflictException('Shop email already exists.');
+    }
+
+    if (fields.phone && existing.phone === fields.phone.trim()) {
+      throw new ConflictException('Shop phone already exists.');
+    }
+  }
+
+  private safeSortBy(sortBy?: string): Prisma.ShopScalarFieldEnum {
+    const allowed: Prisma.ShopScalarFieldEnum[] = ['createdAt', 'updatedAt', 'name', 'city', 'status'];
+    return allowed.includes(sortBy as Prisma.ShopScalarFieldEnum)
+      ? (sortBy as Prisma.ShopScalarFieldEnum)
+      : 'createdAt';
+  }
+
+  private deleteReplacedImage(previous?: string | null, next?: string | null) {
+    if (previous && previous !== next) {
+      this.deleteStoredImage(previous);
+    }
+  }
+
+  private deleteStoredImage(path?: string | null) {
+    if (!path?.startsWith('/uploads/shops/')) {
+      return;
+    }
+
+    const uploadsRoot = join(process.cwd(), 'uploads');
+    const absolutePath = normalize(join(process.cwd(), path));
+
+    if (!absolutePath.startsWith(uploadsRoot) || !existsSync(absolutePath)) {
+      return;
+    }
+
+    unlinkSync(absolutePath);
   }
 }
