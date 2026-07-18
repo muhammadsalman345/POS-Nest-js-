@@ -7,6 +7,12 @@ export class CreateCategoryDto {
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1)
+  shopId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
   parentId?: number;
 
   @IsString()

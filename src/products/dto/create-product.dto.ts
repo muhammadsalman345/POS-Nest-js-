@@ -1,6 +1,7 @@
 import { MarketplaceStatus, ProductCondition, ProductSourceType, ProductStatus, PtaStatus, SaleMode, WarrantyType } from '@prisma/client';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ProductImageDto } from './product-image.dto';
 
 export class CreateProductDto {
   @Transform(({ value }) => Number(value))
@@ -140,6 +141,13 @@ export class CreateProductDto {
   ptaStatus?: PtaStatus;
 
   @IsOptional() @IsString() description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => ProductImageDto)
+  images?: ProductImageDto[];
 
   @IsDateString()
   purchaseDate: string;

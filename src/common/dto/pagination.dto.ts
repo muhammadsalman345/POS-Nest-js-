@@ -17,7 +17,7 @@ export class PaginationDto {
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(200)
   limit = 20;
 
   @IsOptional()

@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { ProductFilterDto } from '../products/dto/product-filter.dto';
+import { MarketplaceProductQueryDto } from './dto/marketplace-product-query.dto';
 import { MarketplaceService } from './marketplace.service';
 
 @ApiTags('Marketplace')
@@ -13,7 +13,7 @@ export class MarketplaceController {
   @Get('shops/:shopId')
   shop(@Param('shopId') shopId: string) { return this.marketplace.shop(+shopId); }
   @Get('products')
-  products(@Query() query: ProductFilterDto & { city?: string; area?: string; shopId?: number }) { return this.marketplace.productsList(query); }
+  products(@Query() query: MarketplaceProductQueryDto) { return this.marketplace.productsList(query); }
   @Get('products/:id')
   product(@Param('id') id: string) { return this.marketplace.product(+id); }
 }

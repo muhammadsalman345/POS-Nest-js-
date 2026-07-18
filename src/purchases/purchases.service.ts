@@ -32,9 +32,10 @@ export class PurchasesService {
       if ((dto.sellerId || dto.seller) && !seller) throw new NotFoundException('Seller not found in this shop');
       const source = dto.sourceId ? await tx.source.findFirst({ where: { id: Number(dto.sourceId), shopId, deletedAt: null } }) : null;
       if (dto.sourceId && !source) throw new NotFoundException('Source not found in this shop');
+      const { images: productImages, ...productData } = dto.product;
       const product = await tx.product.create({
         data: {
-          ...dto.product,
+          ...productData,
           shopId,
           sellerId: seller?.id,
           sourceId: source?.id,
@@ -47,6 +48,16 @@ export class PurchasesService {
           purchasePrice: dto.purchase.purchasePrice,
           purchaseDate: new Date(dto.purchase.purchaseDate),
           createdById: user.id,
+          images: productImages?.length
+            ? {
+                create: productImages.slice(0, 5).map((image, index) => ({
+                  imageUrl: image.imageUrl,
+                  imagePath: image.imagePath,
+                  isPrimary: image.isPrimary ?? index === 0,
+                  sortOrder: image.sortOrder ?? index,
+                })),
+              }
+            : undefined,
         },
       });
       const purchase = await tx.purchase.create({

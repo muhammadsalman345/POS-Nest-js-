@@ -258,6 +258,7 @@ model Shop {
   sales             Sale[]
   expenses          Expense[]
   sources           Source[]
+  categories        Category[]
   customers         Customer[]
   imeiHistories     ImeiHistory[]
   warranties        Warranty[]
@@ -277,6 +278,7 @@ model Shop {
 
 model Category {
   id          Int          @id @default(autoincrement())
+  shopId      Int?
   parentId    Int?
   name        String
   slug        String       @unique
@@ -288,10 +290,12 @@ model Category {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
+  shop        Shop?        @relation(fields: [shopId], references: [id])
   parent      Category?    @relation("CategoryTree", fields: [parentId], references: [id])
   children    Category[]   @relation("CategoryTree")
   products    Product[]
 
+  @@index([shopId])
   @@index([parentId])
   @@index([status])
   @@index([deletedAt])

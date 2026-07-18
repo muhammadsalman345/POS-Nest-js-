@@ -34,6 +34,7 @@ export const productResource = (product: any) => {
     images: product.images,
     category: product.category,
     source: product.source,
+    shop: product.shop,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };

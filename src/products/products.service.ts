@@ -28,15 +28,25 @@ export class ProductsService {
       if (!source) throw new NotFoundException('Source not found in this shop');
     }
     if (dto.categoryId) {
-      const category = await this.prisma.category.findFirst({ where: { id: Number(dto.categoryId), deletedAt: null } });
+      const category = await this.prisma.category.findFirst({
+        where: {
+          id: Number(dto.categoryId),
+          deletedAt: null,
+          OR: [{ shopId: null }, { shopId }],
+        },
+      });
       if (!category) throw new NotFoundException('Category not found');
+    }
+    if ((dto.images?.length ?? 0) > 5) {
+      throw new BadRequestException('Maximum 5 product images are allowed');
     }
     const quantity = dto.quantity ?? 1;
     const soldQuantity = dto.soldQuantity ?? 0;
     const barcode = dto.barcode || this.generateBarcode(shopId);
+    const { images, ...productData } = dto;
     const product = await this.prisma.product.create({
       data: {
-        ...dto,
+        ...productData,
         sellerId: dto.sellerId ? Number(dto.sellerId) : undefined,
         categoryId: dto.categoryId ? Number(dto.categoryId) : undefined,
         sourceId: dto.sourceId ? Number(dto.sourceId) : undefined,
@@ -49,6 +59,16 @@ export class ProductsService {
         availableQuantity: Math.max(quantity - soldQuantity, 0),
         createdById: user.id,
         purchaseDate: new Date(dto.purchaseDate),
+        images: images?.length
+          ? {
+              create: images.map((image, index) => ({
+                imageUrl: image.imageUrl,
+                imagePath: image.imagePath,
+                isPrimary: image.isPrimary ?? index === 0,
+                sortOrder: image.sortOrder ?? index,
+              })),
+            }
+          : undefined,
       },
       include: { images: true, seller: true, source: true, category: true },
     });
@@ -72,12 +92,23 @@ export class ProductsService {
   async update(id: number, user: AuthUser, dto: UpdateProductDto) {
     const old = await this.findOne(id, user);
     if (dto.imei1 || dto.imei2 || dto.serialNumber) await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber, id);
+    if (dto.categoryId) {
+      const category = await this.prisma.category.findFirst({
+        where: {
+          id: Number(dto.categoryId),
+          deletedAt: null,
+          OR: [{ shopId: null }, { shopId: old.shopId }],
+        },
+      });
+      if (!category) throw new NotFoundException('Category not found');
+    }
     const quantity = dto.quantity ?? old.quantity;
     const soldQuantity = dto.soldQuantity ?? old.soldQuantity;
+    const { images: _images, ...productData } = dto;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
-        ...dto,
+        ...productData,
         sellerId: dto.sellerId ? Number(dto.sellerId) : undefined,
         categoryId: dto.categoryId ? Number(dto.categoryId) : undefined,
         sourceId: dto.sourceId ? Number(dto.sourceId) : undefined,
@@ -99,6 +130,10 @@ export class ProductsService {
 
   async addImage(id: number, user: AuthUser, dto: ProductImageDto) {
     await this.ownership.ensureProductAccess(id, user);
+    const imageCount = await this.prisma.productImage.count({ where: { productId: id, deletedAt: null } });
+    if (imageCount >= 5) {
+      throw new BadRequestException('Maximum 5 product images are allowed');
+    }
     if (dto.isPrimary) {
       await this.prisma.productImage.updateMany({ where: { productId: id }, data: { isPrimary: false } });
     }
@@ -163,7 +198,7 @@ export class ProductsService {
     const { page, limit, skip, take } = pagination(query);
     const fullWhere = { deletedAt: null, ...where };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({ where: fullWhere, skip, take, include: { images: { where: { deletedAt: null } }, shop: true }, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
+      this.prisma.product.findMany({ where: fullWhere, skip, take, include: { images: { where: { deletedAt: null } }, shop: true, category: true }, orderBy: { [this.safeSortBy(query.sortBy)]: query.sortOrder } }),
       this.prisma.product.count({ where: fullWhere }),
     ]);
     return paginated(productCollection(items), total, page, limit);
@@ -203,6 +238,13 @@ export class ProductsService {
 
   private generateBarcode(shopId: number) {
     return `P${shopId}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  }
+
+  private safeSortBy(sortBy?: string): Prisma.ProductScalarFieldEnum {
+    const allowed: Prisma.ProductScalarFieldEnum[] = ['createdAt', 'updatedAt', 'name', 'brand', 'model', 'purchasePrice', 'salePrice', 'quantity', 'availableQuantity', 'status'];
+    return allowed.includes(sortBy as Prisma.ProductScalarFieldEnum)
+      ? (sortBy as Prisma.ProductScalarFieldEnum)
+      : 'createdAt';
   }
 
   private async recordImeiHistory(product: { id: number; shopId: number; imei1?: string | null; serialNumber?: string | null }, eventType: ImeiEventType, userId: number, referenceType: string, referenceId: number, previousStatus?: string, newStatus?: string) {
