@@ -6,6 +6,7 @@ import { AuthUser } from '../common/types/auth-user.type';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 
 @ApiTags('Auth')
@@ -21,6 +22,11 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
+  }
+
+  @Post('refresh')
+  refreshToken(@Body() dto: RefreshTokenDto) {
+    return this.auth.refreshToken(dto);
   }
 
   @Get('profile')

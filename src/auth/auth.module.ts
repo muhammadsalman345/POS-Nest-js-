@@ -14,7 +14,11 @@ import { JwtStrategy } from './jwt.strategy';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET') || 'dev-secret',
-        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN') || '7d' },
+        signOptions: {
+          expiresIn:
+            config.get<string>('JWT_ACCESS_EXPIRES_IN') ||
+            '15m',
+        },
       }),
     }),
   ],

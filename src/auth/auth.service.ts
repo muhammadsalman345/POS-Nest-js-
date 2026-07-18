@@ -10,12 +10,15 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { sanitizeUser } from '../common/utils/user.util';
 import { AuthUser } from '../common/types/auth-user.type';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
@@ -77,7 +80,7 @@ export class AuthService {
         'Your account is inactive. Contact super admin.',
       );
     }
-    await this.prisma.$transaction([
+    const [updatedUser] = await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
@@ -91,6 +94,29 @@ export class AuthService {
         },
       }),
     ]);
+    return this.authResponse(updatedUser);
+  }
+
+  async refreshToken(dto: RefreshTokenDto) {
+    const userId = this.refreshTokenUserId(dto.refreshToken);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+        isActive: true,
+        status: UserStatus.ACTIVE,
+        refreshTokenHash: { not: null },
+        refreshTokenExpiresAt: { gt: new Date() },
+      },
+    });
+
+    if (
+      !user?.refreshTokenHash ||
+      !(await bcrypt.compare(dto.refreshToken, user.refreshTokenHash))
+    ) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
     return this.authResponse(user);
   }
 
@@ -109,7 +135,12 @@ export class AuthService {
     }
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { password: await bcrypt.hash(dto.newPassword, 10) },
+      data: {
+        password: await bcrypt.hash(dto.newPassword, 10),
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        tokenVersion: { increment: 1 },
+      },
     });
     return { message: 'Password changed successfully' };
   }
@@ -138,8 +169,15 @@ export class AuthService {
     return sanitizeUser(updated);
   }
 
-  logout(user: AuthUser) {
-    void user;
+  async logout(user: AuthUser) {
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        tokenVersion: { increment: 1 },
+      },
+    });
     return { message: 'Logged out successfully' };
   }
 
@@ -150,13 +188,56 @@ export class AuthService {
     if (exists) throw new ConflictException('Phone or email already exists');
   }
 
-  private authResponse(user: User) {
+  private async authResponse(user: User) {
+    const refreshToken = this.createRefreshToken(user.id);
+    const refreshTokenExpiresAt = this.refreshTokenExpiry();
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshTokenHash: await bcrypt.hash(refreshToken, 10),
+        refreshTokenExpiresAt,
+      },
+    });
+    const accessToken = this.jwt.sign(this.jwtPayload(updatedUser), {
+      expiresIn:
+        this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ||
+        '15m',
+    });
+
     return {
-      token: this.jwt.sign(
-        { sub: user.id, role: user.role },
-        { expiresIn: this.config.get<string>('JWT_EXPIRES_IN') || '7d' },
-      ),
-      user: sanitizeUser(user),
+      accessToken,
+      refreshToken,
+      token: accessToken,
+      user: sanitizeUser(updatedUser),
     };
+  }
+
+  private jwtPayload(user: User): JwtPayload {
+    return {
+      sub: user.id,
+      role: user.role,
+      status: user.status,
+      isActive: user.isActive,
+      tokenVersion: user.tokenVersion,
+    };
+  }
+
+  private createRefreshToken(userId: number): string {
+    return `${userId}.${randomBytes(48).toString('base64url')}`;
+  }
+
+  private refreshTokenUserId(refreshToken: string): number {
+    const [userId] = refreshToken.split('.');
+    const parsedUserId = Number(userId);
+
+    if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return parsedUserId;
+  }
+
+  private refreshTokenExpiry(): Date {
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
 }
