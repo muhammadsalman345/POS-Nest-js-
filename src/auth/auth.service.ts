@@ -8,10 +8,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole, UserStatus } from '@prisma/client';
+import { Prisma, StaffStatus, User, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureDefaultAccessControl } from '../common/access-control/default-access-control';
 import { sanitizeUser } from '../common/utils/user.util';
 import { AuthUser } from '../common/types/auth-user.type';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -35,6 +36,7 @@ export class AuthService {
     if (dto.confirmPassword && dto.confirmPassword !== dto.password) {
       throw new BadRequestException('Password confirmation does not match');
     }
+    const permissions = await ensureDefaultAccessControl(this.prisma);
     await this.ensureUnique(dto.phone, dto.email);
     const { confirmPassword, ...data } = dto;
     void confirmPassword;
@@ -45,7 +47,11 @@ export class AuthService {
         status: UserStatus.PENDING,
         isActive: false,
         password: await bcrypt.hash(dto.password, 10),
+        userPermissions: {
+          create: permissions.map((permission) => ({ permissionId: permission.id })),
+        },
       },
+      include: this.authUserInclude,
     });
     return {
       token: null,
@@ -121,7 +127,10 @@ export class AuthService {
   }
 
   async profile(user: AuthUser) {
-    const found = await this.prisma.user.findUnique({ where: { id: user.id } });
+    const found = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: this.authUserInclude,
+    });
     if (!found) throw new NotFoundException('User not found');
     return sanitizeUser(found);
   }
@@ -165,6 +174,7 @@ export class AuthService {
     const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: dto,
+      include: this.authUserInclude,
     });
     return sanitizeUser(updated);
   }
@@ -189,6 +199,7 @@ export class AuthService {
   }
 
   private async authResponse(user: User) {
+    await ensureDefaultAccessControl(this.prisma);
     const refreshToken = this.createRefreshToken(user.id);
     const refreshTokenExpiresAt = this.refreshTokenExpiry();
     const updatedUser = await this.prisma.user.update({
@@ -197,6 +208,7 @@ export class AuthService {
         refreshTokenHash: await bcrypt.hash(refreshToken, 10),
         refreshTokenExpiresAt,
       },
+      include: this.authUserInclude,
     });
     const accessToken = this.jwt.sign(this.jwtPayload(updatedUser), {
       expiresIn:
@@ -211,6 +223,17 @@ export class AuthService {
       user: sanitizeUser(updatedUser),
     };
   }
+
+  private readonly authUserInclude = {
+    userPermissions: { include: { permission: true } },
+    staff: {
+      where: { status: StaffStatus.ACTIVE },
+      include: {
+        staffPermissions: { include: { permission: true } },
+        role: { include: { rolePermissions: { include: { permission: true } } } },
+      },
+    },
+  } satisfies Prisma.UserInclude;
 
   private jwtPayload(user: User): JwtPayload {
     return {

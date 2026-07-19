@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthUser } from '../common/types/auth-user.type';
+import { UpdateUserPermissionsDto } from './dto/update-user-permissions.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -22,6 +23,22 @@ export class UsersController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OWNER)
   findAll(@CurrentUser() user: AuthUser, @Query() query: UserQueryDto) {
     return this.users.findAll(user, query);
+  }
+
+  @Get(':id/permissions')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  permissions(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.users.permissions(+id, user);
+  }
+
+  @Patch(':id/permissions')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  updatePermissions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateUserPermissionsDto,
+  ) {
+    return this.users.updatePermissions(+id, user, dto);
   }
 
   @Get(':id')

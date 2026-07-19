@@ -213,6 +213,7 @@ model User {
   customer    Customer?
   auditLogs   AuditLog[]
   staff       ShopStaff[]
+  userPermissions UserPermission[]
 
   @@index([role])
   @@index([status])
@@ -799,6 +800,20 @@ model Permission {
   createdAt        DateTime          @default(now())
   rolePermissions  RolePermission[]
   staffPermissions StaffPermission[]
+  userPermissions  UserPermission[]
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
 }
 
 model RolePermission {

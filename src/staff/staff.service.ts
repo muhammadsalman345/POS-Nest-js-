@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { ensureDefaultAccessControl } from '../common/access-control/default-access-control';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -20,11 +21,13 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 export class StaffService {
   constructor(private readonly prisma: PrismaService, private readonly ownership: OwnershipService) {}
 
-  permissions() {
+  async permissions() {
+    await ensureDefaultAccessControl(this.prisma);
     return this.prisma.permission.findMany({ orderBy: { name: 'asc' } });
   }
 
-  roles() {
+  async roles() {
+    await ensureDefaultAccessControl(this.prisma);
     return this.prisma.staffRole.findMany({
       orderBy: { name: 'asc' },
       include: { rolePermissions: { include: { permission: true } } },

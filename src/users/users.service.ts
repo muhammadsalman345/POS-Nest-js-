@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
+import { ensureDefaultAccessControl } from '../common/access-control/default-access-control';
 import { AuthUser } from '../common/types/auth-user.type';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { sanitizeUser } from '../common/utils/user.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateUserPermissionsDto } from './dto/update-user-permissions.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -17,11 +19,16 @@ import { UserQueryDto } from './dto/user-query.dto';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly userInclude = {
+    userPermissions: { include: { permission: true } },
+  } satisfies Prisma.UserInclude;
+
   private isAdmin(user: AuthUser) {
     return user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
   }
 
   async findAll(current: AuthUser, query: UserQueryDto) {
+    await ensureDefaultAccessControl(this.prisma);
     const { page, limit, skip, take } = pagination(query);
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
@@ -54,6 +61,7 @@ export class UsersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
+        include: this.userInclude,
         skip,
         take,
         orderBy: { [query.sortBy || 'createdAt']: query.sortOrder },
@@ -68,6 +76,7 @@ export class UsersService {
       throw new ForbiddenException();
     const user = await this.prisma.user.findFirst({
       where: { id, deletedAt: null },
+      include: this.userInclude,
     });
     if (!user) throw new NotFoundException('User not found');
     return sanitizeUser(user);
@@ -76,8 +85,52 @@ export class UsersService {
   async update(id: number, current: AuthUser, dto: UpdateUserDto) {
     if (!this.isAdmin(current) && current.id !== id)
       throw new ForbiddenException();
-    const user = await this.prisma.user.update({ where: { id }, data: dto });
+    const user = await this.prisma.user.update({ where: { id }, data: dto, include: this.userInclude });
     return sanitizeUser(user);
+  }
+
+  async permissions(id: number, current: AuthUser) {
+    if (!this.isAdmin(current) && current.id !== id) throw new ForbiddenException();
+    await ensureDefaultAccessControl(this.prisma);
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      include: this.userInclude,
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user.userPermissions;
+  }
+
+  async updatePermissions(id: number, current: AuthUser, dto: UpdateUserPermissionsDto) {
+    if (!this.isAdmin(current)) throw new ForbiddenException();
+    if (current.id === id) {
+      throw new BadRequestException('You cannot change your own permissions');
+    }
+    await ensureDefaultAccessControl(this.prisma);
+    const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException('Super admin permissions cannot be changed');
+    }
+
+    if (dto.permissionIds.length) {
+      const total = await this.prisma.permission.count({
+        where: { id: { in: dto.permissionIds } },
+      });
+      if (total !== dto.permissionIds.length) {
+        throw new NotFoundException('One or more permissions were not found');
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.userPermission.deleteMany({ where: { userId: id } }),
+      ...dto.permissionIds.map((permissionId) =>
+        this.prisma.userPermission.create({
+          data: { userId: id, permissionId },
+        }),
+      ),
+    ]);
+
+    return this.findOne(id, current);
   }
 
   async remove(id: number) {
@@ -109,6 +162,7 @@ export class UsersService {
     const user = await this.prisma.user.update({
       where: { id },
       data: { isActive: status === UserStatus.ACTIVE, status },
+      include: this.userInclude,
     });
     return sanitizeUser(user);
   }
