@@ -1,6 +1,6 @@
-import { ShopStatus } from '@prisma/client';
+import { SaleMode, ShopStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateShopDto {
   @IsString()
@@ -60,6 +60,53 @@ export class CreateShopDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  taxPercentage?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  inventoryTrackingEnabled?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  lowStockAlertsEnabled?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  allowNegativeStock?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  onlineSellingEnabled?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  cashOnDeliveryEnabled?: boolean;
+
+  @IsOptional()
+  @IsEnum(SaleMode)
+  defaultSaleMode?: SaleMode;
+
+  @IsOptional()
+  @IsString()
+  receiptSize?: string;
 
   @IsOptional()
   @IsBoolean()

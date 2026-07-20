@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ImeiEventType, MarketplaceStatus, Prisma, ProductStatus, SaleMode } from '@prisma/client';
+import { existsSync, unlinkSync } from 'fs';
+import { join, normalize } from 'path';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { serializeAuditData } from '../common/utils/audit.util';
@@ -10,6 +12,7 @@ import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductImageDto } from './dto/product-image.dto';
 import { UpdateProductStatusDto } from './dto/update-status.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { productImagePath } from './product-image-upload';
 import { productCollection, productResource } from './resources/product.resource';
 
 @Injectable()
@@ -18,6 +21,7 @@ export class ProductsService {
 
   async create(shopId: number, user: AuthUser, dto: CreateProductDto) {
     await this.ownership.ensureShopAccess(shopId, user);
+    await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode);
     await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber);
     if (dto.sellerId) {
       const seller = await this.prisma.seller.findFirst({ where: { id: Number(dto.sellerId), shopId, deletedAt: null } });
@@ -42,27 +46,43 @@ export class ProductsService {
     }
     const quantity = dto.quantity ?? 1;
     const soldQuantity = dto.soldQuantity ?? 0;
-    const barcode = dto.barcode || this.generateBarcode(shopId);
+    const barcode = dto.barcode?.trim() || undefined;
+    const name = dto.name?.trim() || [dto.brand, dto.model].filter(Boolean).join(' ').trim() || `Product ${Date.now()}`;
+    const sku = dto.sku?.trim() || this.generateSku(shopId, name);
+    const brand = dto.brand?.trim() || name;
+    const model = dto.model?.trim() || name;
+    const offlineSaleEnabled = dto.offlineSaleEnabled ?? true;
+    const onlineSaleEnabled = dto.onlineSaleEnabled ?? false;
+    const saleMode = dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled);
     const { images, ...productData } = dto;
     const product = await this.prisma.product.create({
       data: {
         ...productData,
+        sku,
+        brand,
+        model,
         sellerId: dto.sellerId ? Number(dto.sellerId) : undefined,
         categoryId: dto.categoryId ? Number(dto.categoryId) : undefined,
         sourceId: dto.sourceId ? Number(dto.sourceId) : undefined,
-        name: dto.name || `${dto.brand} ${dto.model}`.trim(),
+        name,
         shopId,
         barcode,
-        qrCode: dto.qrCode || `product:${barcode}`,
+        qrCode: dto.qrCode || `product:${barcode ?? sku}`,
         quantity,
         soldQuantity,
         availableQuantity: Math.max(quantity - soldQuantity, 0),
+        offlineSaleEnabled,
+        onlineSaleEnabled,
+        saleMode,
+        marketplaceStatus: onlineSaleEnabled && dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
+          ? MarketplaceStatus.PUBLISHED
+          : dto.marketplaceStatus ?? MarketplaceStatus.HIDDEN,
         createdById: user.id,
-        purchaseDate: new Date(dto.purchaseDate),
+        purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : new Date(),
         images: images?.length
           ? {
               create: images.map((image, index) => ({
-                imageUrl: image.imageUrl,
+                imageUrl: image.imageUrl || image.imagePath || '',
                 imagePath: image.imagePath,
                 isPrimary: image.isPrimary ?? index === 0,
                 sortOrder: image.sortOrder ?? index,
@@ -91,6 +111,7 @@ export class ProductsService {
 
   async update(id: number, user: AuthUser, dto: UpdateProductDto) {
     const old = await this.findOne(id, user);
+    await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode, id);
     if (dto.imei1 || dto.imei2 || dto.serialNumber) await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber, id);
     if (dto.categoryId) {
       const category = await this.prisma.category.findFirst({
@@ -104,21 +125,49 @@ export class ProductsService {
     }
     const quantity = dto.quantity ?? old.quantity;
     const soldQuantity = dto.soldQuantity ?? old.soldQuantity;
-    const { images: _images, ...productData } = dto;
+    const { images, ...productData } = dto;
+    const offlineSaleEnabled = dto.offlineSaleEnabled ?? old.offlineSaleEnabled ?? true;
+    const onlineSaleEnabled = dto.onlineSaleEnabled ?? old.onlineSaleEnabled ?? false;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
         ...productData,
+        sku: dto.sku?.trim(),
+        name: dto.name?.trim(),
+        brand: dto.brand?.trim() || (dto.name ? dto.name.trim() : undefined),
+        model: dto.model?.trim() || (dto.name ? dto.name.trim() : undefined),
+        barcode: dto.barcode?.trim() || (dto.barcode === '' ? null : undefined),
         sellerId: dto.sellerId ? Number(dto.sellerId) : undefined,
         categoryId: dto.categoryId ? Number(dto.categoryId) : undefined,
         sourceId: dto.sourceId ? Number(dto.sourceId) : undefined,
         availableQuantity: Math.max(quantity - soldQuantity, 0),
+        offlineSaleEnabled,
+        onlineSaleEnabled,
+        saleMode: dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled),
+        marketplaceStatus: onlineSaleEnabled && dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
+          ? MarketplaceStatus.PUBLISHED
+          : dto.marketplaceStatus ?? (onlineSaleEnabled ? old.marketplaceStatus : MarketplaceStatus.HIDDEN),
         updatedById: user.id,
         purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
       },
+      include: { images: { where: { deletedAt: null } }, seller: true, source: true, category: true },
     });
+    if (images) {
+      await this.prisma.productImage.updateMany({ where: { productId: id, deletedAt: null }, data: { deletedAt: new Date() } });
+      if (images.length) {
+        await this.prisma.productImage.createMany({
+          data: images.map((image, index) => ({
+            productId: id,
+            imageUrl: image.imageUrl || image.imagePath || '',
+            imagePath: image.imagePath,
+            isPrimary: image.isPrimary ?? index === 0,
+            sortOrder: image.sortOrder ?? index,
+          })),
+        });
+      }
+    }
     await this.audit(user.id, 'UPDATE', id, old, product);
-    return productResource(product);
+    return this.findOne(id, user);
   }
 
   async remove(id: number, user: AuthUser) {
@@ -137,12 +186,40 @@ export class ProductsService {
     if (dto.isPrimary) {
       await this.prisma.productImage.updateMany({ where: { productId: id }, data: { isPrimary: false } });
     }
-    return this.prisma.productImage.create({ data: { productId: id, ...dto } });
+    return this.prisma.productImage.create({ data: { productId: id, ...dto, imageUrl: dto.imageUrl || dto.imagePath || '' } });
   }
 
   async deleteImage(productId: number, imageId: number, user: AuthUser) {
     await this.ownership.ensureProductAccess(productId, user);
-    await this.prisma.productImage.update({ where: { id: imageId }, data: { deletedAt: new Date() } });
+    const image = await this.prisma.productImage.update({ where: { id: imageId }, data: { deletedAt: new Date() } });
+    this.deleteStoredProductImage(image.imagePath || image.imageUrl);
+    return { message: 'Image deleted' };
+  }
+
+  uploadedImage(file: Express.Multer.File) {
+    if (!file?.filename) {
+      throw new BadRequestException('Image file is required.');
+    }
+
+    const path = productImagePath(file.filename);
+    return {
+      path,
+      filename: file.filename,
+      size: file.size,
+      mimetype: file.mimetype,
+    };
+  }
+
+  deleteUploadedImage(path: string) {
+    if (!path) {
+      throw new BadRequestException('Image path is required.');
+    }
+
+    if (!path.startsWith('/uploads/products/')) {
+      throw new BadRequestException('Image path does not match product uploads.');
+    }
+
+    this.deleteStoredProductImage(path);
     return { message: 'Image deleted' };
   }
 
@@ -236,8 +313,68 @@ export class ProductsService {
     if (found) throw new ConflictException('IMEI or serial number already exists');
   }
 
+  async ensureUniqueSkuBarcode(sku?: string, barcode?: string, ignoreId?: number) {
+    const checks: Prisma.ProductWhereInput[] = [];
+
+    if (sku?.trim()) checks.push({ sku: sku.trim() });
+    if (barcode?.trim()) checks.push({ barcode: barcode.trim() });
+
+    if (!checks.length) return;
+
+    const found = await this.prisma.product.findFirst({
+      where: {
+        deletedAt: null,
+        id: ignoreId ? { not: ignoreId } : undefined,
+        OR: checks,
+      },
+    });
+
+    if (!found) return;
+
+    if (sku?.trim() && found.sku === sku.trim()) {
+      throw new ConflictException('SKU already exists');
+    }
+
+    if (barcode?.trim() && found.barcode === barcode.trim()) {
+      throw new ConflictException('Barcode already exists');
+    }
+  }
+
+  private saleMode(offlineSaleEnabled: boolean, onlineSaleEnabled: boolean): SaleMode {
+    if (offlineSaleEnabled && onlineSaleEnabled) {
+      return SaleMode.BOTH;
+    }
+
+    return onlineSaleEnabled ? SaleMode.ONLINE_MARKETPLACE : SaleMode.OFFLINE_ONLY;
+  }
+
+  private deleteStoredProductImage(path?: string | null) {
+    if (!path?.startsWith('/uploads/products/')) {
+      return;
+    }
+
+    const uploadsRoot = join(process.cwd(), 'uploads');
+    const absolutePath = normalize(join(process.cwd(), path));
+
+    if (!absolutePath.startsWith(uploadsRoot) || !existsSync(absolutePath)) {
+      return;
+    }
+
+    unlinkSync(absolutePath);
+  }
+
   private generateBarcode(shopId: number) {
     return `P${shopId}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  }
+
+  private generateSku(shopId: number, name: string) {
+    const body = name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '')
+      .slice(0, 8) || 'ITEM';
+
+    return `S${shopId}-${body}-${Date.now().toString().slice(-6)}`;
   }
 
   private safeSortBy(sortBy?: string): Prisma.ProductScalarFieldEnum {

@@ -226,6 +226,7 @@ model Shop {
   ownerId           Int
   name              String
   slug              String?            @unique
+  type              String             @default("General Retail")
   address           String
   city              String
   area              String?
@@ -238,6 +239,15 @@ model Shop {
   logo              String?
   coverImage        String?
   description       String?
+  currency          String             @default("PKR")
+  taxPercentage     Decimal            @default(0)
+  inventoryTrackingEnabled Boolean     @default(true)
+  lowStockAlertsEnabled Boolean        @default(true)
+  allowNegativeStock Boolean           @default(false)
+  onlineSellingEnabled Boolean         @default(false)
+  cashOnDeliveryEnabled Boolean        @default(false)
+  defaultSaleMode   SaleMode           @default(OFFLINE_ONLY)
+  receiptSize       String             @default("80mm")
   status            ShopStatus         @default(ACTIVE)
   isVerified        Boolean            @default(false)
   isActive          Boolean            @default(true)
@@ -409,6 +419,7 @@ model Product {
   categoryId            Int?
   sourceId              Int?
   name                  String?
+  sku                   String?           @unique
   brand                 String
   model                 String
   variant               String?
@@ -424,6 +435,7 @@ model Product {
   purchasePrice         Decimal
   expectedSalePrice     Decimal?
   salePrice             Decimal?
+  compareAtPrice        Decimal?
   minimumSalePrice      Decimal?
   finalSalePrice        Decimal?
   quantity              Int               @default(1)
@@ -434,6 +446,7 @@ model Product {
   warrantyType          WarrantyType      @default(NONE)
   warrantyMonths        Int?
   onlineSaleEnabled     Boolean           @default(false)
+  offlineSaleEnabled    Boolean           @default(true)
   saleMode              SaleMode          @default(OFFLINE_ONLY)
   marketplaceStatus     MarketplaceStatus @default(HIDDEN)
   sourceType            ProductSourceType @default(CUSTOMER)
@@ -447,6 +460,13 @@ model Product {
   supplierAddress       String?
   status                ProductStatus     @default(IN_STOCK)
   ptaStatus             PtaStatus         @default(UNKNOWN)
+  discountType          String            @default("none")
+  discountValue         Decimal           @default(0)
+  lowStockAlert         Int               @default(0)
+  useShopDefaultTax     Boolean           @default(true)
+  customTaxPercentage   Decimal?
+  serialNumberRequired  Boolean           @default(false)
+  imeiRequired          Boolean           @default(false)
   description           String?
   purchaseDate          DateTime
   createdById           Int?
@@ -473,6 +493,7 @@ model Product {
   @@index([categoryId])
   @@index([sourceId])
   @@index([brand, model])
+  @@index([sku])
   @@index([status])
   @@index([condition])
   @@index([ptaStatus])

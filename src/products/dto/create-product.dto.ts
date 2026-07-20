@@ -26,13 +26,17 @@ export class CreateProductDto {
   @IsString()
   name?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  brand: string;
+  sku?: string;
 
   @IsString()
-  @IsNotEmpty()
-  model: string;
+  @IsOptional()
+  brand?: string;
+
+  @IsString()
+  @IsOptional()
+  model?: string;
 
   @IsOptional() @IsString() variant?: string;
   @IsOptional() @IsString() imei1?: string;
@@ -69,6 +73,12 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   salePrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  compareAtPrice?: number;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))
@@ -116,6 +126,11 @@ export class CreateProductDto {
   onlineSaleEnabled?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  offlineSaleEnabled?: boolean;
+
+  @IsOptional()
   @IsEnum(ProductSourceType)
   sourceType?: ProductSourceType;
 
@@ -140,6 +155,43 @@ export class CreateProductDto {
   @IsEnum(PtaStatus)
   ptaStatus?: PtaStatus;
 
+  @IsOptional()
+  @IsString()
+  discountType?: 'none' | 'fixed' | 'percentage';
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  discountValue?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  lowStockAlert?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  useShopDefaultTax?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  customTaxPercentage?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  serialNumberRequired?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  imeiRequired?: boolean;
+
   @IsOptional() @IsString() description?: string;
 
   @IsOptional()
@@ -149,6 +201,7 @@ export class CreateProductDto {
   @Type(() => ProductImageDto)
   images?: ProductImageDto[];
 
+  @IsOptional()
   @IsDateString()
-  purchaseDate: string;
+  purchaseDate?: string;
 }

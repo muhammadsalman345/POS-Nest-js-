@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -7,6 +8,7 @@ import { AuthUser } from '../common/types/auth-user.type';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductImageDto } from './dto/product-image.dto';
+import { productImageUploadOptions } from './product-image-upload';
 import { UpdateProductStatusDto } from './dto/update-status.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -42,6 +44,11 @@ export class ProductsController {
   searchByImei(@Query('imei') imei: string, @CurrentUser() user: AuthUser) { return this.products.searchByImei(imei, user); }
   @Get('products/barcode/:barcode')
   findByBarcode(@Param('barcode') barcode: string, @CurrentUser() user: AuthUser) { return this.products.findByBarcode(barcode, user); }
+  @Post('products/images')
+  @UseInterceptors(FileInterceptor('image', productImageUploadOptions))
+  uploadImage(@UploadedFile() file: Express.Multer.File) { return this.products.uploadedImage(file); }
+  @Delete('products/images')
+  deleteUploadedImage(@Query('path') path: string) { return this.products.deleteUploadedImage(path); }
   @Get('products/:id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) { return this.products.findOne(+id, user); }
   @Patch('products/:id')
