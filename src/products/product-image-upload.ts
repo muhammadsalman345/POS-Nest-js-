@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { existsSync, mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { extname } from 'path';
+import { uploadDirectory } from '../common/utils/uploads.util';
 
 const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -9,7 +10,7 @@ const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export const productImageUploadOptions = {
   storage: diskStorage({
     destination: (_request, _file, callback) => {
-      const destination = join(process.cwd(), 'uploads', 'products');
+      const destination = uploadDirectory('products');
 
       if (!existsSync(destination)) {
         mkdirSync(destination, { recursive: true });

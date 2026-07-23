@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
 import { existsSync, unlinkSync } from 'fs';
-import { join, normalize } from 'path';
+import { isInsideUploadsRoot, uploadedPublicPathToDiskPath } from '../common/utils/uploads.util';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { serializeAuditData } from '../common/utils/audit.util';
@@ -306,10 +306,9 @@ export class ShopsService {
       return;
     }
 
-    const uploadsRoot = join(process.cwd(), 'uploads');
-    const absolutePath = normalize(join(process.cwd(), path));
+    const absolutePath = uploadedPublicPathToDiskPath(path);
 
-    if (!absolutePath.startsWith(uploadsRoot) || !existsSync(absolutePath)) {
+    if (!isInsideUploadsRoot(absolutePath) || !existsSync(absolutePath)) {
       return;
     }
 

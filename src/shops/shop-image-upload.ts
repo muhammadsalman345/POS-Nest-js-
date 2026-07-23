@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { existsSync, mkdirSync } from 'fs';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import { diskStorage } from 'multer';
+import { uploadDirectory } from '../common/utils/uploads.util';
 
 export type ShopImageSlot = 'logo' | 'cover';
 
@@ -12,7 +13,7 @@ export const shopImageUploadOptions = {
   storage: diskStorage({
     destination: (_request, _file, callback) => {
       const slot = shopImageSlotFromRequest(_request.params?.slot);
-      const destination = join(process.cwd(), 'uploads', 'shops', slot);
+      const destination = uploadDirectory('shops', slot);
 
       if (!existsSync(destination)) {
         mkdirSync(destination, { recursive: true });
