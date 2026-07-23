@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ImeiEventType, MarketplaceStatus, Prisma, ProductStatus, SaleMode } from '@prisma/client';
+import { ImeiEventType, MarketplaceStatus, Prisma, ProductStatus, SaleMode, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
 import { existsSync, unlinkSync } from 'fs';
 import { join, normalize } from 'path';
 import { OwnershipService } from '../common/services/ownership.service';
@@ -20,7 +20,14 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService, private readonly ownership: OwnershipService) {}
 
   async create(shopId: number, user: AuthUser, dto: CreateProductDto) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    const shop = await this.ownership.ensureShopAccess(shopId, user);
+    if (
+      shop.approvalStatus !== ShopApprovalStatus.APPROVED ||
+      shop.status !== ShopStatus.ACTIVE ||
+      !shop.isActive
+    ) {
+      throw new BadRequestException('Shop must be approved and active before products can be added.');
+    }
     await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode);
     await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber);
     if (dto.sellerId) {
@@ -100,6 +107,12 @@ export class ProductsService {
   async list(shopId: number, user: AuthUser, query: ProductFilterDto) {
     await this.ownership.ensureShopAccess(shopId, user);
     return this.listByWhere({ shopId, ...this.filters(query) }, query);
+  }
+
+  async listMine(user: AuthUser, query: ProductFilterDto) {
+    const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+    const ownerId = isAdmin && query.ownerId ? query.ownerId : user.id;
+    return this.listByWhere({ shop: { ownerId }, ...this.filters(query) }, query);
   }
 
   async findOne(id: number, user: AuthUser) {

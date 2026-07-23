@@ -27,7 +27,13 @@ export class ProductsController {
 
   @Get('products')
   listRoot(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser, @Query() query: ProductFilterDto) {
-    return this.products.list(+shopId, user, query);
+    const parsedShopId = Number(shopId);
+
+    if (Number.isInteger(parsedShopId) && parsedShopId > 0) {
+      return this.products.list(parsedShopId, user, query);
+    }
+
+    return this.products.listMine(user, query);
   }
 
   @Post('shops/:shopId/products')

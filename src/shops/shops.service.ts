@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
 import { existsSync, unlinkSync } from 'fs';
 import { join, normalize } from 'path';
@@ -51,7 +51,13 @@ export class ShopsService {
   }
 
   async findAll(user: AuthUser, query: ShopQueryDto) {
-    return this.list(query, user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN ? {} : { ownerId: user.id });
+    const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+
+    if (isAdmin) {
+      return this.list(query, query.ownerId ? { ownerId: query.ownerId } : {});
+    }
+
+    return this.list(query, { ownerId: user.id });
   }
 
   async findOne(id: number, user: AuthUser) {
@@ -60,6 +66,7 @@ export class ShopsService {
 
   async update(id: number, user: AuthUser, dto: UpdateShopDto) {
     const old = await this.ownership.ensureShopAccess(id, user);
+    const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
     const nextStatus = dto.status ?? old.status;
     const slug = dto.slug || (dto.name ? this.slug(dto.name) : undefined);
     this.validateActivePayload({ ...old, ...dto, status: nextStatus } as CreateShopDto);
@@ -75,7 +82,11 @@ export class ShopsService {
         address: dto.address?.trim(),
         city: dto.city?.trim(),
         phone: dto.phone?.trim() || (dto.phone === '' ? null : undefined),
-        isActive: nextStatus === ShopStatus.ACTIVE,
+        approvalStatus: isAdmin ? undefined : ShopApprovalStatus.PENDING,
+        rejectionReason: isAdmin ? undefined : null,
+        approvedAt: isAdmin ? undefined : null,
+        approvedById: isAdmin ? undefined : null,
+        isActive: nextStatus === ShopStatus.ACTIVE && (isAdmin || old.approvalStatus === ShopApprovalStatus.APPROVED),
         updatedById: user.id,
       },
     });
@@ -122,7 +133,11 @@ export class ShopsService {
   }
 
   async review(id: number, user: AuthUser, dto: { approvalStatus: ShopApprovalStatus; paymentRequired?: boolean; paymentAmount?: number; rejectionReason?: string }) {
-    const old = await this.ownership.ensureShopAccess(id, user);
+    const old = await this.prisma.shop.findFirst({ where: { id, deletedAt: null } });
+    if (!old) throw new NotFoundException('Shop not found');
+    if (old.ownerId === user.id) {
+      throw new ForbiddenException('You cannot review your own shop.');
+    }
     const isApproved = dto.approvalStatus === ShopApprovalStatus.APPROVED;
     const shop = await this.prisma.shop.update({
       where: { id },
@@ -131,6 +146,7 @@ export class ShopsService {
         paymentRequired: dto.paymentRequired ?? dto.approvalStatus === ShopApprovalStatus.PAYMENT_REQUIRED,
         paymentAmount: dto.paymentAmount,
         rejectionReason: dto.rejectionReason,
+        status: isApproved ? ShopStatus.ACTIVE : old.status === ShopStatus.DRAFT ? ShopStatus.DRAFT : ShopStatus.INACTIVE,
         isActive: isApproved,
         approvedAt: isApproved ? new Date() : null,
         approvedById: isApproved ? user.id : null,

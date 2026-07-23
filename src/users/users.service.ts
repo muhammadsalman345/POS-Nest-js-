@@ -21,6 +21,11 @@ export class UsersService {
 
   private readonly userInclude = {
     userPermissions: { include: { permission: true } },
+    _count: {
+      select: {
+        shops: { where: { deletedAt: null } },
+      },
+    },
   } satisfies Prisma.UserInclude;
 
   private isAdmin(user: AuthUser) {
