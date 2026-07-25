@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ImeiEventType, PaymentMethod, PaymentStatus, ProductStatus, SaleStatus, SaleType } from '@prisma/client';
+import { ImeiEventType, PaymentMethod, PaymentStatus, Prisma, ProductStatus, SaleStatus, SaleType } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -153,9 +153,28 @@ export class SalesService {
   async list(shopId: number, user: AuthUser, query: PaginationDto) {
     await this.ownership.ensureShopAccess(shopId, user);
     const { page, limit, skip, take } = pagination(query);
-    const where = { shopId, deletedAt: null };
+    const search = query.search?.trim();
+    const where: Prisma.SaleWhereInput = {
+      shopId,
+      deletedAt: null,
+      ...(search
+        ? {
+            OR: [
+              { invoiceNumber: { contains: search } },
+              { invoiceNo: { contains: search } },
+              { customer: { name: { contains: search } } },
+              { customer: { phone: { contains: search } } },
+              { customer: { cnic: { contains: search } } },
+              { items: { some: { productName: { contains: search } } } },
+              { items: { some: { imei1: { contains: search } } } },
+              { items: { some: { imei2: { contains: search } } } },
+              { items: { some: { serialNumber: { contains: search } } } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.sale.findMany({ where, skip, take, include: { customer: true, product: true, items: true, payments: true }, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
+      this.prisma.sale.findMany({ where, skip, take, include: { shop: true, customer: true, product: true, items: true, payments: true }, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
       this.prisma.sale.count({ where }),
     ]);
     return paginated(saleCollection(items), total, page, limit);

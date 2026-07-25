@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ImeiEventType } from '@prisma/client';
+import { ImeiEventType, Prisma } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
@@ -88,12 +88,38 @@ export class PurchasesService {
     });
   }
 
-  async list(shopId: number, user: AuthUser, query: PaginationDto) {
+  async list(shopId: number, user: AuthUser, query: PaginationDto & { source_id?: string; sourceId?: string; seller_id?: string; sellerId?: string }) {
     await this.ownership.ensureShopAccess(shopId, user);
     const { page, limit, skip, take } = pagination(query);
-    const where = { shopId, deletedAt: null };
+    const sourceId = query.source_id || query.sourceId;
+    const sellerId = query.seller_id || query.sellerId;
+    const search = query.search?.trim();
+    const where: Prisma.PurchaseWhereInput = {
+      shopId,
+      deletedAt: null,
+      ...(sourceId ? { sourceId: Number(sourceId) } : {}),
+      ...(sellerId ? { sellerId: Number(sellerId) } : {}),
+      ...(search
+        ? {
+            OR: [
+              { receiptNumber: { contains: search } },
+              { notes: { contains: search } },
+              { source: { name: { contains: search } } },
+              { source: { phone: { contains: search } } },
+              { source: { companyName: { contains: search } } },
+              { seller: { name: { contains: search } } },
+              { seller: { phone: { contains: search } } },
+              { product: { name: { contains: search } } },
+              { product: { sku: { contains: search } } },
+              { product: { imei1: { contains: search } } },
+              { product: { imei2: { contains: search } } },
+              { product: { serialNumber: { contains: search } } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.purchase.findMany({ where, skip, take, include: { seller: true, source: true, product: true }, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
+      this.prisma.purchase.findMany({ where, skip, take, include: { shop: true, seller: true, source: true, product: true }, orderBy: { [query.sortBy || 'createdAt']: query.sortOrder } }),
       this.prisma.purchase.count({ where }),
     ]);
     return paginated(items, total, page, limit);
