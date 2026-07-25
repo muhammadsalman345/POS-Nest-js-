@@ -1,5 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { MarketplaceStatus, Prisma, ProductStatus, SaleMode, ShopApprovalStatus, ShopStatus } from '@prisma/client';
+import {
+  MarketplaceStatus,
+  Prisma,
+  ProductStatus,
+  SaleMode,
+  ShopApprovalStatus,
+  ShopStatus,
+} from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { ProductsService } from '../products/products.service';
@@ -8,7 +15,10 @@ import { MarketplaceProductQueryDto } from './dto/marketplace-product-query.dto'
 
 @Injectable()
 export class MarketplaceService {
-  constructor(private readonly prisma: PrismaService, private readonly products: ProductsService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly products: ProductsService,
+  ) {}
 
   async shops(query: PaginationDto & { city?: string; area?: string }) {
     const { page, limit, skip, take } = pagination(query);
@@ -25,7 +35,18 @@ export class MarketplaceService {
         where,
         skip,
         take,
-        select: { id: true, name: true, address: true, city: true, area: true, country: true, phone: true, logo: true, coverImage: true, description: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          city: true,
+          area: true,
+          country: true,
+          phone: true,
+          logo: true,
+          coverImage: true,
+          description: true,
+        },
       }),
       this.prisma.shop.count({ where }),
     ]);
@@ -34,8 +55,25 @@ export class MarketplaceService {
 
   async shop(id: number) {
     const shop = await this.prisma.shop.findFirst({
-      where: { id, deletedAt: null, isActive: true, status: ShopStatus.ACTIVE, approvalStatus: ShopApprovalStatus.APPROVED },
-      select: { id: true, name: true, address: true, city: true, area: true, country: true, phone: true, logo: true, coverImage: true, description: true },
+      where: {
+        id,
+        deletedAt: null,
+        isActive: true,
+        status: ShopStatus.ACTIVE,
+        approvalStatus: ShopApprovalStatus.APPROVED,
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        area: true,
+        country: true,
+        phone: true,
+        logo: true,
+        coverImage: true,
+        description: true,
+      },
     });
     if (!shop) throw new NotFoundException('Shop not found');
     return shop;
@@ -67,12 +105,27 @@ export class MarketplaceService {
         saleMode: { in: [SaleMode.ONLINE_MARKETPLACE, SaleMode.BOTH] },
         marketplaceStatus: MarketplaceStatus.PUBLISHED,
         deletedAt: null,
-        shop: { isActive: true, status: ShopStatus.ACTIVE, approvalStatus: ShopApprovalStatus.APPROVED },
+        shop: {
+          isActive: true,
+          status: ShopStatus.ACTIVE,
+          approvalStatus: ShopApprovalStatus.APPROVED,
+        },
       },
       include: {
         images: { where: { deletedAt: null } },
-        category: true,
-        shop: { select: { id: true, name: true, address: true, city: true, area: true, country: true, phone: true, logo: true } },
+        category: { include: { parent: true } },
+        shop: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            city: true,
+            area: true,
+            country: true,
+            phone: true,
+            logo: true,
+          },
+        },
       },
     });
     if (!product) throw new NotFoundException('Product not found');

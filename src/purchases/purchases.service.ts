@@ -20,7 +20,7 @@ export class PurchasesService {
 
   async create(shopId: number, user: AuthUser, dto: CreatePurchaseDto) {
     await this.ownership.ensureShopAccess(shopId, user);
-    if (!dto.sellerId && !dto.seller && !dto.sourceId) throw new BadRequestException('sellerId, seller, or sourceId is required');
+    if (!dto.sellerId && !dto.seller && !dto.sourceId && !dto.source) throw new BadRequestException('sellerId, seller, sourceId, or source is required');
     await this.products.ensureImeis(dto.product.imei1, dto.product.imei2);
 
     return this.prisma.$transaction(async (tx) => {
@@ -30,8 +30,12 @@ export class PurchasesService {
           ? await tx.seller.create({ data: { ...dto.seller, shopId } })
           : null;
       if ((dto.sellerId || dto.seller) && !seller) throw new NotFoundException('Seller not found in this shop');
-      const source = dto.sourceId ? await tx.source.findFirst({ where: { id: Number(dto.sourceId), shopId, deletedAt: null } }) : null;
-      if (dto.sourceId && !source) throw new NotFoundException('Source not found in this shop');
+      const source = dto.sourceId
+        ? await tx.source.findFirst({ where: { id: Number(dto.sourceId), shopId, deletedAt: null } })
+        : dto.source
+          ? await tx.source.create({ data: { ...dto.source, shopId, createdById: user.id } })
+          : null;
+      if ((dto.sourceId || dto.source) && !source) throw new NotFoundException('Source not found in this shop');
       const { images: productImages, ...productData } = dto.product;
       const productName = dto.product.name || `${dto.product.brand ?? ''} ${dto.product.model ?? ''}`.trim() || `Product ${Date.now()}`;
       const product = await tx.product.create({

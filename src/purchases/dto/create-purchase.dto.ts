@@ -2,6 +2,7 @@ import { IsDateString, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, V
 import { Transform, Type } from 'class-transformer';
 import { CreateSellerDto } from '../../sellers/dto/create-seller.dto';
 import { CreateProductDto } from '../../products/dto/create-product.dto';
+import { CreateSourceDto } from '../../sources/dto/create-source.dto';
 
 export class PurchaseMetaDto {
   @Transform(({ value }) => Number(value))
@@ -38,6 +39,11 @@ export class CreatePurchaseDto {
   @IsInt()
   @Min(1)
   sourceId?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateSourceDto)
+  source?: CreateSourceDto;
 
   @IsNotEmpty()
   @ValidateNested()

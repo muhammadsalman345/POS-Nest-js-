@@ -1,7 +1,24 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ImeiEventType, MarketplaceStatus, Prisma, ProductStatus, SaleMode, ShopApprovalStatus, ShopStatus, UserRole } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  ImeiEventType,
+  MarketplaceStatus,
+  Prisma,
+  ProductStatus,
+  SaleMode,
+  ShopApprovalStatus,
+  ShopStatus,
+  UserRole,
+} from '@prisma/client';
 import { existsSync, unlinkSync } from 'fs';
-import { isInsideUploadsRoot, uploadedPublicPathToDiskPath } from '../common/utils/uploads.util';
+import {
+  isInsideUploadsRoot,
+  uploadedPublicPathToDiskPath,
+} from '../common/utils/uploads.util';
 import { OwnershipService } from '../common/services/ownership.service';
 import { AuthUser } from '../common/types/auth-user.type';
 import { serializeAuditData } from '../common/utils/audit.util';
@@ -13,11 +30,17 @@ import { ProductImageDto } from './dto/product-image.dto';
 import { UpdateProductStatusDto } from './dto/update-status.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { productImagePath } from './product-image-upload';
-import { productCollection, productResource } from './resources/product.resource';
+import {
+  productCollection,
+  productResource,
+} from './resources/product.resource';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService, private readonly ownership: OwnershipService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   async create(shopId: number, user: AuthUser, dto: CreateProductDto) {
     const shop = await this.ownership.ensureShopAccess(shopId, user);
@@ -26,16 +49,22 @@ export class ProductsService {
       shop.status !== ShopStatus.ACTIVE ||
       !shop.isActive
     ) {
-      throw new BadRequestException('Shop must be approved and active before products can be added.');
+      throw new BadRequestException(
+        'Shop must be approved and active before products can be added.',
+      );
     }
     await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode);
     await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber);
     if (dto.sellerId) {
-      const seller = await this.prisma.seller.findFirst({ where: { id: Number(dto.sellerId), shopId, deletedAt: null } });
+      const seller = await this.prisma.seller.findFirst({
+        where: { id: Number(dto.sellerId), shopId, deletedAt: null },
+      });
       if (!seller) throw new NotFoundException('Seller not found in this shop');
     }
     if (dto.sourceId) {
-      const source = await this.prisma.source.findFirst({ where: { id: Number(dto.sourceId), shopId, deletedAt: null } });
+      const source = await this.prisma.source.findFirst({
+        where: { id: Number(dto.sourceId), shopId, deletedAt: null },
+      });
       if (!source) throw new NotFoundException('Source not found in this shop');
     }
     if (dto.categoryId) {
@@ -54,13 +83,17 @@ export class ProductsService {
     const quantity = dto.quantity ?? 1;
     const soldQuantity = dto.soldQuantity ?? 0;
     const barcode = dto.barcode?.trim() || undefined;
-    const name = dto.name?.trim() || [dto.brand, dto.model].filter(Boolean).join(' ').trim() || `Product ${Date.now()}`;
+    const name =
+      dto.name?.trim() ||
+      [dto.brand, dto.model].filter(Boolean).join(' ').trim() ||
+      `Product ${Date.now()}`;
     const sku = dto.sku?.trim() || this.generateSku(shopId, name);
     const brand = dto.brand?.trim() || name;
     const model = dto.model?.trim() || name;
     const offlineSaleEnabled = dto.offlineSaleEnabled ?? true;
     const onlineSaleEnabled = dto.onlineSaleEnabled ?? false;
-    const saleMode = dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled);
+    const saleMode =
+      dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled);
     const { images, ...productData } = dto;
     const product = await this.prisma.product.create({
       data: {
@@ -81,11 +114,15 @@ export class ProductsService {
         offlineSaleEnabled,
         onlineSaleEnabled,
         saleMode,
-        marketplaceStatus: onlineSaleEnabled && dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
-          ? MarketplaceStatus.PUBLISHED
-          : dto.marketplaceStatus ?? MarketplaceStatus.HIDDEN,
+        marketplaceStatus:
+          onlineSaleEnabled &&
+          dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
+            ? MarketplaceStatus.PUBLISHED
+            : (dto.marketplaceStatus ?? MarketplaceStatus.HIDDEN),
         createdById: user.id,
-        purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : new Date(),
+        purchaseDate: dto.purchaseDate
+          ? new Date(dto.purchaseDate)
+          : new Date(),
         images: images?.length
           ? {
               create: images.map((image, index) => ({
@@ -97,9 +134,22 @@ export class ProductsService {
             }
           : undefined,
       },
-      include: { images: true, seller: true, source: true, category: true },
+      include: {
+        images: true,
+        seller: true,
+        source: true,
+        category: { include: { parent: true } },
+      },
     });
-    await this.recordImeiHistory(product, ImeiEventType.PURCHASE, user.id, 'PRODUCT', product.id, undefined, String(product.status));
+    await this.recordImeiHistory(
+      product,
+      ImeiEventType.PURCHASE,
+      user.id,
+      'PRODUCT',
+      product.id,
+      undefined,
+      String(product.status),
+    );
     await this.audit(user.id, 'CREATE', product.id, null, product);
     return productResource(product);
   }
@@ -110,13 +160,24 @@ export class ProductsService {
   }
 
   async listMine(user: AuthUser, query: ProductFilterDto) {
-    const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+    const isAdmin =
+      user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
     const ownerId = isAdmin && query.ownerId ? query.ownerId : user.id;
-    return this.listByWhere({ shop: { ownerId }, ...this.filters(query) }, query);
+    return this.listByWhere(
+      { shop: { ownerId }, ...this.filters(query) },
+      query,
+    );
   }
 
   async findOne(id: number, user: AuthUser) {
-    const product = await this.prisma.product.findFirst({ where: { id, deletedAt: null }, include: { images: { where: { deletedAt: null } }, seller: true, shop: true } });
+    const product = await this.prisma.product.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        images: { where: { deletedAt: null } },
+        seller: true,
+        shop: true,
+      },
+    });
     if (!product) throw new NotFoundException('Product not found');
     await this.ownership.ensureShopAccess(product.shopId, user);
     return productResource(product);
@@ -125,7 +186,13 @@ export class ProductsService {
   async update(id: number, user: AuthUser, dto: UpdateProductDto) {
     const old = await this.findOne(id, user);
     await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode, id);
-    if (dto.imei1 || dto.imei2 || dto.serialNumber) await this.ensureUniqueIdentifiers(dto.imei1, dto.imei2, dto.serialNumber, id);
+    if (dto.imei1 || dto.imei2 || dto.serialNumber)
+      await this.ensureUniqueIdentifiers(
+        dto.imei1,
+        dto.imei2,
+        dto.serialNumber,
+        id,
+      );
     if (dto.categoryId) {
       const category = await this.prisma.category.findFirst({
         where: {
@@ -139,8 +206,10 @@ export class ProductsService {
     const quantity = dto.quantity ?? old.quantity;
     const soldQuantity = dto.soldQuantity ?? old.soldQuantity;
     const { images, ...productData } = dto;
-    const offlineSaleEnabled = dto.offlineSaleEnabled ?? old.offlineSaleEnabled ?? true;
-    const onlineSaleEnabled = dto.onlineSaleEnabled ?? old.onlineSaleEnabled ?? false;
+    const offlineSaleEnabled =
+      dto.offlineSaleEnabled ?? old.offlineSaleEnabled ?? true;
+    const onlineSaleEnabled =
+      dto.onlineSaleEnabled ?? old.onlineSaleEnabled ?? false;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -156,17 +225,31 @@ export class ProductsService {
         availableQuantity: Math.max(quantity - soldQuantity, 0),
         offlineSaleEnabled,
         onlineSaleEnabled,
-        saleMode: dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled),
-        marketplaceStatus: onlineSaleEnabled && dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
-          ? MarketplaceStatus.PUBLISHED
-          : dto.marketplaceStatus ?? (onlineSaleEnabled ? old.marketplaceStatus : MarketplaceStatus.HIDDEN),
+        saleMode:
+          dto.saleMode ?? this.saleMode(offlineSaleEnabled, onlineSaleEnabled),
+        marketplaceStatus:
+          onlineSaleEnabled &&
+          dto.marketplaceStatus === MarketplaceStatus.PUBLISHED
+            ? MarketplaceStatus.PUBLISHED
+            : (dto.marketplaceStatus ??
+              (onlineSaleEnabled
+                ? old.marketplaceStatus
+                : MarketplaceStatus.HIDDEN)),
         updatedById: user.id,
         purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
       },
-      include: { images: { where: { deletedAt: null } }, seller: true, source: true, category: true },
+      include: {
+        images: { where: { deletedAt: null } },
+        seller: true,
+        source: true,
+        category: { include: { parent: true } },
+      },
     });
     if (images) {
-      await this.prisma.productImage.updateMany({ where: { productId: id, deletedAt: null }, data: { deletedAt: new Date() } });
+      await this.prisma.productImage.updateMany({
+        where: { productId: id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
       if (images.length) {
         await this.prisma.productImage.createMany({
           data: images.map((image, index) => ({
@@ -185,26 +268,43 @@ export class ProductsService {
 
   async remove(id: number, user: AuthUser) {
     const old = await this.findOne(id, user);
-    await this.prisma.product.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.product.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     await this.audit(user.id, 'DELETE', id, old, null);
     return { message: 'Product deleted' };
   }
 
   async addImage(id: number, user: AuthUser, dto: ProductImageDto) {
     await this.ownership.ensureProductAccess(id, user);
-    const imageCount = await this.prisma.productImage.count({ where: { productId: id, deletedAt: null } });
+    const imageCount = await this.prisma.productImage.count({
+      where: { productId: id, deletedAt: null },
+    });
     if (imageCount >= 5) {
       throw new BadRequestException('Maximum 5 product images are allowed');
     }
     if (dto.isPrimary) {
-      await this.prisma.productImage.updateMany({ where: { productId: id }, data: { isPrimary: false } });
+      await this.prisma.productImage.updateMany({
+        where: { productId: id },
+        data: { isPrimary: false },
+      });
     }
-    return this.prisma.productImage.create({ data: { productId: id, ...dto, imageUrl: dto.imageUrl || dto.imagePath || '' } });
+    return this.prisma.productImage.create({
+      data: {
+        productId: id,
+        ...dto,
+        imageUrl: dto.imageUrl || dto.imagePath || '',
+      },
+    });
   }
 
   async deleteImage(productId: number, imageId: number, user: AuthUser) {
     await this.ownership.ensureProductAccess(productId, user);
-    const image = await this.prisma.productImage.update({ where: { id: imageId }, data: { deletedAt: new Date() } });
+    const image = await this.prisma.productImage.update({
+      where: { id: imageId },
+      data: { deletedAt: new Date() },
+    });
     this.deleteStoredProductImage(image.imagePath || image.imageUrl);
     return { message: 'Image deleted' };
   }
@@ -229,7 +329,9 @@ export class ProductsService {
     }
 
     if (!path.startsWith('/uploads/products/')) {
-      throw new BadRequestException('Image path does not match product uploads.');
+      throw new BadRequestException(
+        'Image path does not match product uploads.',
+      );
     }
 
     this.deleteStoredProductImage(path);
@@ -238,16 +340,35 @@ export class ProductsService {
 
   async status(id: number, user: AuthUser, dto: UpdateProductStatusDto) {
     const old = await this.ownership.ensureProductAccess(id, user);
-    const product = await this.prisma.product.update({ where: { id }, data: { status: dto.status } });
-    await this.recordImeiHistory(product, ImeiEventType.STATUS_CHANGE, user.id, 'PRODUCT', product.id, String(old.status), String(product.status));
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: { status: dto.status },
+    });
+    await this.recordImeiHistory(
+      product,
+      ImeiEventType.STATUS_CHANGE,
+      user.id,
+      'PRODUCT',
+      product.id,
+      String(old.status),
+      String(product.status),
+    );
     await this.audit(user.id, 'STATUS_UPDATE', id, old, product);
     return productResource(product);
   }
 
   async searchByImei(imei: string, user: AuthUser) {
     const product = await this.prisma.product.findFirst({
-      where: { deletedAt: null, OR: [{ imei1: imei }, { imei2: imei }, { serialNumber: imei }] },
-      include: { shop: true, source: true, category: true, images: { where: { deletedAt: null } } },
+      where: {
+        deletedAt: null,
+        OR: [{ imei1: imei }, { imei2: imei }, { serialNumber: imei }],
+      },
+      include: {
+        shop: true,
+        source: true,
+        category: { include: { parent: true } },
+        images: { where: { deletedAt: null } },
+      },
     });
     if (!product) throw new NotFoundException('Product not found');
     await this.ownership.ensureShopAccess(product.shopId, user);
@@ -255,7 +376,10 @@ export class ProductsService {
   }
 
   async findByBarcode(barcode: string, user: AuthUser) {
-    const product = await this.prisma.product.findFirst({ where: { barcode, deletedAt: null }, include: { shop: true, images: { where: { deletedAt: null } } } });
+    const product = await this.prisma.product.findFirst({
+      where: { barcode, deletedAt: null },
+      include: { shop: true, images: { where: { deletedAt: null } } },
+    });
     if (!product) throw new NotFoundException('Product not found');
     await this.ownership.ensureShopAccess(product.shopId, user);
     return productResource(product);
@@ -263,21 +387,36 @@ export class ProductsService {
 
   async publish(id: number, user: AuthUser) {
     const product = await this.ownership.ensureProductAccess(id, user);
-    if (product.status !== ProductStatus.IN_STOCK && product.status !== ProductStatus.AVAILABLE) {
+    if (
+      product.status !== ProductStatus.IN_STOCK &&
+      product.status !== ProductStatus.AVAILABLE
+    ) {
       throw new BadRequestException('Only available products can be published');
     }
-    return productResource(await this.prisma.product.update({
-      where: { id },
-      data: { saleMode: SaleMode.BOTH, onlineSaleEnabled: true, marketplaceStatus: MarketplaceStatus.PUBLISHED, updatedById: user.id },
-    }));
+    return productResource(
+      await this.prisma.product.update({
+        where: { id },
+        data: {
+          saleMode: SaleMode.BOTH,
+          onlineSaleEnabled: true,
+          marketplaceStatus: MarketplaceStatus.PUBLISHED,
+          updatedById: user.id,
+        },
+      }),
+    );
   }
 
   async unpublish(id: number, user: AuthUser) {
     await this.ownership.ensureProductAccess(id, user);
-    return productResource(await this.prisma.product.update({
-      where: { id },
-      data: { marketplaceStatus: MarketplaceStatus.HIDDEN, updatedById: user.id },
-    }));
+    return productResource(
+      await this.prisma.product.update({
+        where: { id },
+        data: {
+          marketplaceStatus: MarketplaceStatus.HIDDEN,
+          updatedById: user.id,
+        },
+      }),
+    );
   }
 
   barcodeLabel(id: number, user: AuthUser) {
@@ -288,7 +427,17 @@ export class ProductsService {
     const { page, limit, skip, take } = pagination(query);
     const fullWhere = { deletedAt: null, ...where };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({ where: fullWhere, skip, take, include: { images: { where: { deletedAt: null } }, shop: true, category: true }, orderBy: { [this.safeSortBy(query.sortBy)]: query.sortOrder } }),
+      this.prisma.product.findMany({
+        where: fullWhere,
+        skip,
+        take,
+        include: {
+          images: { where: { deletedAt: null } },
+          shop: true,
+          category: { include: { parent: true } },
+        },
+        orderBy: { [this.safeSortBy(query.sortBy)]: query.sortOrder },
+      }),
       this.prisma.product.count({ where: fullWhere }),
     ]);
     return paginated(productCollection(items), total, page, limit);
@@ -299,13 +448,35 @@ export class ProductsService {
       ...(query.brand ? { brand: { contains: query.brand } } : {}),
       ...(query.categoryId ? { categoryId: Number(query.categoryId) } : {}),
       ...(query.model ? { model: { contains: query.model } } : {}),
-      ...(query.imei ? { OR: [{ imei1: { contains: query.imei } }, { imei2: { contains: query.imei } }, { serialNumber: { contains: query.imei } }] } : {}),
+      ...(query.imei
+        ? {
+            OR: [
+              { imei1: { contains: query.imei } },
+              { imei2: { contains: query.imei } },
+              { serialNumber: { contains: query.imei } },
+            ],
+          }
+        : {}),
       ...(query.barcode ? { barcode: query.barcode } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.condition ? { condition: query.condition } : {}),
       ...(query.ptaStatus ? { ptaStatus: query.ptaStatus } : {}),
-      ...(query.search ? { OR: [{ name: { contains: query.search } }, { brand: { contains: query.search } }, { model: { contains: query.search } }, { imei1: { contains: query.search } }, { imei2: { contains: query.search } }, { serialNumber: { contains: query.search } }, { barcode: { contains: query.search } }] } : {}),
-      ...(query.minPrice || query.maxPrice ? { expectedSalePrice: { gte: query.minPrice, lte: query.maxPrice } } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search } },
+              { brand: { contains: query.search } },
+              { model: { contains: query.search } },
+              { imei1: { contains: query.search } },
+              { imei2: { contains: query.search } },
+              { serialNumber: { contains: query.search } },
+              { barcode: { contains: query.search } },
+            ],
+          }
+        : {}),
+      ...(query.minPrice || query.maxPrice
+        ? { expectedSalePrice: { gte: query.minPrice, lte: query.maxPrice } }
+        : {}),
     };
   }
 
@@ -313,20 +484,34 @@ export class ProductsService {
     return this.ensureUniqueIdentifiers(imei1, imei2, undefined, ignoreId);
   }
 
-  async ensureUniqueIdentifiers(imei1?: string, imei2?: string, serialNumber?: string, ignoreId?: number) {
+  async ensureUniqueIdentifiers(
+    imei1?: string,
+    imei2?: string,
+    serialNumber?: string,
+    ignoreId?: number,
+  ) {
     const checks = [imei1, imei2].filter(Boolean) as string[];
     if (!checks.length && !serialNumber) return;
-    if (imei1 && imei2 && imei1 === imei2) throw new ConflictException('IMEI 1 and IMEI 2 must be different');
+    if (imei1 && imei2 && imei1 === imei2)
+      throw new ConflictException('IMEI 1 and IMEI 2 must be different');
     const found = await this.prisma.product.findFirst({
       where: {
         id: ignoreId ? { not: ignoreId } : undefined,
-        OR: [...checks.flatMap((imei) => [{ imei1: imei }, { imei2: imei }]), ...(serialNumber ? [{ serialNumber }] : [])],
+        OR: [
+          ...checks.flatMap((imei) => [{ imei1: imei }, { imei2: imei }]),
+          ...(serialNumber ? [{ serialNumber }] : []),
+        ],
       },
     });
-    if (found) throw new ConflictException('IMEI or serial number already exists');
+    if (found)
+      throw new ConflictException('IMEI or serial number already exists');
   }
 
-  async ensureUniqueSkuBarcode(sku?: string, barcode?: string, ignoreId?: number) {
+  async ensureUniqueSkuBarcode(
+    sku?: string,
+    barcode?: string,
+    ignoreId?: number,
+  ) {
     const checks: Prisma.ProductWhereInput[] = [];
 
     if (sku?.trim()) checks.push({ sku: sku.trim() });
@@ -353,12 +538,17 @@ export class ProductsService {
     }
   }
 
-  private saleMode(offlineSaleEnabled: boolean, onlineSaleEnabled: boolean): SaleMode {
+  private saleMode(
+    offlineSaleEnabled: boolean,
+    onlineSaleEnabled: boolean,
+  ): SaleMode {
     if (offlineSaleEnabled && onlineSaleEnabled) {
       return SaleMode.BOTH;
     }
 
-    return onlineSaleEnabled ? SaleMode.ONLINE_MARKETPLACE : SaleMode.OFFLINE_ONLY;
+    return onlineSaleEnabled
+      ? SaleMode.ONLINE_MARKETPLACE
+      : SaleMode.OFFLINE_ONLY;
   }
 
   private deleteStoredProductImage(path?: string | null) {
@@ -380,23 +570,48 @@ export class ProductsService {
   }
 
   private generateSku(shopId: number, name: string) {
-    const body = name
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '')
-      .slice(0, 8) || 'ITEM';
+    const body =
+      name
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '')
+        .slice(0, 8) || 'ITEM';
 
     return `S${shopId}-${body}-${Date.now().toString().slice(-6)}`;
   }
 
   private safeSortBy(sortBy?: string): Prisma.ProductScalarFieldEnum {
-    const allowed: Prisma.ProductScalarFieldEnum[] = ['createdAt', 'updatedAt', 'name', 'brand', 'model', 'purchasePrice', 'salePrice', 'quantity', 'availableQuantity', 'status'];
+    const allowed: Prisma.ProductScalarFieldEnum[] = [
+      'createdAt',
+      'updatedAt',
+      'name',
+      'brand',
+      'model',
+      'purchasePrice',
+      'salePrice',
+      'quantity',
+      'availableQuantity',
+      'status',
+    ];
     return allowed.includes(sortBy as Prisma.ProductScalarFieldEnum)
       ? (sortBy as Prisma.ProductScalarFieldEnum)
       : 'createdAt';
   }
 
-  private async recordImeiHistory(product: { id: number; shopId: number; imei1?: string | null; serialNumber?: string | null }, eventType: ImeiEventType, userId: number, referenceType: string, referenceId: number, previousStatus?: string, newStatus?: string) {
+  private async recordImeiHistory(
+    product: {
+      id: number;
+      shopId: number;
+      imei1?: string | null;
+      serialNumber?: string | null;
+    },
+    eventType: ImeiEventType,
+    userId: number,
+    referenceType: string,
+    referenceId: number,
+    previousStatus?: string,
+    newStatus?: string,
+  ) {
     const imei = product.imei1 || product.serialNumber;
     if (!imei) return;
     await this.prisma.imeiHistory.create({
@@ -415,9 +630,22 @@ export class ProductsService {
     });
   }
 
-  private audit(userId: number, action: string, recordId: number, oldData: unknown, newData: unknown) {
+  private audit(
+    userId: number,
+    action: string,
+    recordId: number,
+    oldData: unknown,
+    newData: unknown,
+  ) {
     return this.prisma.auditLog.create({
-      data: { userId, action, module: 'PRODUCT', recordId: String(recordId), oldData: serializeAuditData(oldData), newData: serializeAuditData(newData) },
+      data: {
+        userId,
+        action,
+        module: 'PRODUCT',
+        recordId: String(recordId),
+        oldData: serializeAuditData(oldData),
+        newData: serializeAuditData(newData),
+      },
     });
   }
 }
