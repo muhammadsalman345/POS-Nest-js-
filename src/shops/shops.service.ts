@@ -47,7 +47,7 @@ export class ShopsService {
   }
 
   async my(user: AuthUser, query: ShopQueryDto) {
-    return this.list(query, { ownerId: user.id });
+    return this.list(query, this.accessibleShopWhere(user));
   }
 
   async findAll(user: AuthUser, query: ShopQueryDto) {
@@ -57,7 +57,7 @@ export class ShopsService {
       return this.list(query, query.ownerId ? { ownerId: query.ownerId } : {});
     }
 
-    return this.list(query, { ownerId: user.id });
+    return this.list(query, this.accessibleShopWhere(user));
   }
 
   async findOne(id: number, user: AuthUser) {
@@ -179,21 +179,21 @@ export class ShopsService {
 
   private async list(query: ShopQueryDto, extra: Prisma.ShopWhereInput) {
     const { page, limit, skip, take } = pagination(query);
+    const searchWhere: Prisma.ShopWhereInput | undefined = query.search
+      ? {
+          OR: [
+            { name: { contains: query.search } },
+            { city: { contains: query.search } },
+            { area: { contains: query.search } },
+            { owner: { name: { contains: query.search } } },
+            { owner: { phone: { contains: query.search } } },
+          ],
+        }
+      : undefined;
     const where: Prisma.ShopWhereInput = {
-      ...extra,
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { name: { contains: query.search } },
-              { city: { contains: query.search } },
-              { area: { contains: query.search } },
-              { owner: { name: { contains: query.search } } },
-              { owner: { phone: { contains: query.search } } },
-            ],
-          }
-        : {}),
+      AND: [extra, ...(searchWhere ? [searchWhere] : [])],
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.shop.findMany({
@@ -218,6 +218,15 @@ export class ShopsService {
       this.prisma.shop.count({ where }),
     ]);
     return paginated(items, total, page, limit);
+  }
+
+  private accessibleShopWhere(user: AuthUser): Prisma.ShopWhereInput {
+    return {
+      OR: [
+        { ownerId: user.id },
+        { staff: { some: { userId: user.id, status: 'ACTIVE' } } },
+      ],
+    };
   }
 
   private audit(userId: number, action: string, recordId: number, oldData: unknown, newData: unknown) {

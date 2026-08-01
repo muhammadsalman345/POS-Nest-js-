@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -43,7 +44,7 @@ export class ProductsService {
   ) {}
 
   async create(shopId: number, user: AuthUser, dto: CreateProductDto) {
-    const shop = await this.ownership.ensureShopAccess(shopId, user);
+    const shop = await this.ownership.ensureShopPermission(shopId, user, 'products.create');
     if (
       shop.approvalStatus !== ShopApprovalStatus.APPROVED ||
       shop.status !== ShopStatus.ACTIVE ||
@@ -151,20 +152,24 @@ export class ProductsService {
       String(product.status),
     );
     await this.audit(user.id, 'CREATE', product.id, null, product);
-    return productResource(product);
+    return this.findOne(product.id, user);
   }
 
   async list(shopId: number, user: AuthUser, query: ProductFilterDto) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    await this.ownership.ensureShopPermission(shopId, user, 'products.view');
     return this.listByWhere({ shopId, ...this.filters(query) }, query);
   }
 
   async listMine(user: AuthUser, query: ProductFilterDto) {
     const isAdmin =
       user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
-    const ownerId = isAdmin && query.ownerId ? query.ownerId : user.id;
+    const shopWhere = isAdmin
+      ? query.ownerId
+        ? { ownerId: query.ownerId }
+        : {}
+      : await this.accessibleProductShopWhere(user, 'products.view');
     return this.listByWhere(
-      { shop: { ownerId }, ...this.filters(query) },
+      { shop: shopWhere, ...this.filters(query) },
       query,
     );
   }
@@ -179,11 +184,13 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
-    await this.ownership.ensureShopAccess(product.shopId, user);
-    return productResource(product);
+    await this.ownership.ensureShopPermission(product.shopId, user, 'products.view');
+    return productResource(await this.withUserAttribution(product));
   }
 
   async update(id: number, user: AuthUser, dto: UpdateProductDto) {
+    const existing = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(existing.shopId, user, 'products.edit');
     const old = await this.findOne(id, user);
     await this.ensureUniqueSkuBarcode(dto.sku, dto.barcode, id);
     if (dto.imei1 || dto.imei2 || dto.serialNumber)
@@ -198,18 +205,18 @@ export class ProductsService {
         where: {
           id: Number(dto.categoryId),
           deletedAt: null,
-          OR: [{ shopId: null }, { shopId: old.shopId }],
+          OR: [{ shopId: null }, { shopId: existing.shopId }],
         },
       });
       if (!category) throw new NotFoundException('Category not found');
     }
-    const quantity = dto.quantity ?? old.quantity;
-    const soldQuantity = dto.soldQuantity ?? old.soldQuantity;
+    const quantity = dto.quantity ?? existing.quantity;
+    const soldQuantity = dto.soldQuantity ?? existing.soldQuantity;
     const { images, ...productData } = dto;
     const offlineSaleEnabled =
-      dto.offlineSaleEnabled ?? old.offlineSaleEnabled ?? true;
+      dto.offlineSaleEnabled ?? existing.offlineSaleEnabled ?? true;
     const onlineSaleEnabled =
-      dto.onlineSaleEnabled ?? old.onlineSaleEnabled ?? false;
+      dto.onlineSaleEnabled ?? existing.onlineSaleEnabled ?? false;
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -233,7 +240,7 @@ export class ProductsService {
             ? MarketplaceStatus.PUBLISHED
             : (dto.marketplaceStatus ??
               (onlineSaleEnabled
-                ? old.marketplaceStatus
+                ? existing.marketplaceStatus
                 : MarketplaceStatus.HIDDEN)),
         updatedById: user.id,
         purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
@@ -267,6 +274,8 @@ export class ProductsService {
   }
 
   async remove(id: number, user: AuthUser) {
+    const existing = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(existing.shopId, user, 'products.delete');
     const old = await this.findOne(id, user);
     await this.prisma.product.update({
       where: { id },
@@ -277,7 +286,8 @@ export class ProductsService {
   }
 
   async addImage(id: number, user: AuthUser, dto: ProductImageDto) {
-    await this.ownership.ensureProductAccess(id, user);
+    const product = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(product.shopId, user, 'products.edit');
     const imageCount = await this.prisma.productImage.count({
       where: { productId: id, deletedAt: null },
     });
@@ -300,7 +310,8 @@ export class ProductsService {
   }
 
   async deleteImage(productId: number, imageId: number, user: AuthUser) {
-    await this.ownership.ensureProductAccess(productId, user);
+    const product = await this.ownership.ensureProductAccess(productId, user);
+    await this.ownership.ensureShopPermission(product.shopId, user, 'products.edit');
     const image = await this.prisma.productImage.update({
       where: { id: imageId },
       data: { deletedAt: new Date() },
@@ -340,6 +351,7 @@ export class ProductsService {
 
   async status(id: number, user: AuthUser, dto: UpdateProductStatusDto) {
     const old = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(old.shopId, user, 'products.edit');
     const product = await this.prisma.product.update({
       where: { id },
       data: { status: dto.status },
@@ -387,6 +399,7 @@ export class ProductsService {
 
   async publish(id: number, user: AuthUser) {
     const product = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(product.shopId, user, 'products.edit');
     if (
       product.status !== ProductStatus.IN_STOCK &&
       product.status !== ProductStatus.AVAILABLE
@@ -407,7 +420,8 @@ export class ProductsService {
   }
 
   async unpublish(id: number, user: AuthUser) {
-    await this.ownership.ensureProductAccess(id, user);
+    const product = await this.ownership.ensureProductAccess(id, user);
+    await this.ownership.ensureShopPermission(product.shopId, user, 'products.edit');
     return productResource(
       await this.prisma.product.update({
         where: { id },
@@ -440,7 +454,8 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where: fullWhere }),
     ]);
-    return paginated(productCollection(items), total, page, limit);
+    const decoratedItems = (await this.withUserAttribution(items)) as typeof items;
+    return paginated(productCollection(decoratedItems), total, page, limit);
   }
 
   filters(query: ProductFilterDto): Prisma.ProductWhereInput {
@@ -578,6 +593,67 @@ export class ProductsService {
         .slice(0, 8) || 'ITEM';
 
     return `S${shopId}-${body}-${Date.now().toString().slice(-6)}`;
+  }
+
+  private async accessibleProductShopWhere(user: AuthUser, permissionName: string): Promise<Prisma.ShopWhereInput> {
+    if (user.role !== UserRole.STAFF) {
+      return { ownerId: user.id };
+    }
+
+    const assignments = await this.prisma.shopStaff.findMany({
+      where: { userId: user.id, status: 'ACTIVE' },
+      include: {
+        staffPermissions: { include: { permission: true } },
+        role: { include: { rolePermissions: { include: { permission: true } } } },
+      },
+    });
+    const shopIds = assignments
+      .filter((assignment) => {
+        const permissionNames = [
+          ...assignment.staffPermissions.map((item) => item.permission.name),
+          ...assignment.role.rolePermissions.map((item) => item.permission.name),
+        ];
+        return permissionNames.includes(permissionName);
+      })
+      .map((assignment) => assignment.shopId);
+
+    if (!shopIds.length) {
+      throw new ForbiddenException('Forbidden module access');
+    }
+
+    return { id: { in: shopIds } };
+  }
+
+  private async withUserAttribution<T extends { createdById?: number | null; updatedById?: number | null }>(
+    productOrProducts: T | T[],
+  ): Promise<T | T[]> {
+    const products = Array.isArray(productOrProducts) ? productOrProducts : [productOrProducts];
+    const userIds = [
+      ...new Set(
+        products
+          .flatMap((product) => [product.createdById, product.updatedById])
+          .filter((id): id is number => Number.isInteger(id)),
+      ),
+    ];
+
+    if (!userIds.length) {
+      return productOrProducts;
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true, phone: true, email: true, role: true },
+    });
+    const userById = new Map(users.map((user) => [user.id, user]));
+    const decoratedProducts = products.map((product) => ({
+      ...product,
+      createdBy: product.createdById ? userById.get(product.createdById) : null,
+      updatedBy: product.updatedById ? userById.get(product.updatedById) : null,
+    }));
+
+    return Array.isArray(productOrProducts)
+      ? decoratedProducts
+      : decoratedProducts[0];
   }
 
   private safeSortBy(sortBy?: string): Prisma.ProductScalarFieldEnum {

@@ -46,6 +46,10 @@ export const productResource = (product: any) => {
     category: product.category,
     source: product.source,
     shop: product.shop,
+    createdById: product.createdById,
+    updatedById: product.updatedById,
+    createdBy: product.createdBy,
+    updatedBy: product.updatedBy,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };

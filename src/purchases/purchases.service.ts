@@ -19,7 +19,10 @@ export class PurchasesService {
   ) {}
 
   async create(shopId: number, user: AuthUser, dto: CreatePurchaseDto) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    await this.ownership.ensureShopPermission(shopId, user, [
+      'products.create',
+      'purchases.create',
+    ]);
     if (!dto.sellerId && !dto.seller && !dto.sourceId && !dto.source) throw new BadRequestException('sellerId, seller, sourceId, or source is required');
     await this.products.ensureImeis(dto.product.imei1, dto.product.imei2);
 
@@ -93,7 +96,7 @@ export class PurchasesService {
   }
 
   async list(shopId: number, user: AuthUser, query: PaginationDto & { source_id?: string; sourceId?: string; seller_id?: string; sellerId?: string }) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    await this.ownership.ensureShopPermission(shopId, user, 'purchases.view');
     const { page, limit, skip, take } = pagination(query);
     const sourceId = query.source_id || query.sourceId;
     const sellerId = query.seller_id || query.sellerId;

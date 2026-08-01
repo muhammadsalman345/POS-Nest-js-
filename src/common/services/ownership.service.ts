@@ -28,4 +28,34 @@ export class OwnershipService {
     await this.ensureShopAccess(product.shopId, user);
     return product;
   }
+
+  async ensureShopPermission(shopId: number, user: AuthUser, permissions: string | string[]) {
+    const shop = await this.ensureShopAccess(shopId, user);
+    if (this.isAdmin(user)) return shop;
+    const requiredPermissions = Array.isArray(permissions) ? permissions : [permissions];
+
+    if (shop.ownerId === user.id) {
+      const ownerPermissions = await this.prisma.userPermission.findMany({
+        where: { userId: user.id },
+        include: { permission: true },
+      });
+      const ownerPermissionNames = ownerPermissions.map((item) => item.permission.name);
+      if (!ownerPermissionNames.length || requiredPermissions.some((permission) => ownerPermissionNames.includes(permission))) return shop;
+      throw new ForbiddenException('Forbidden module access');
+    }
+
+    const staff = await this.prisma.shopStaff.findFirst({
+      where: { shopId, userId: user.id, status: 'ACTIVE' },
+      include: {
+        staffPermissions: { include: { permission: true } },
+        role: { include: { rolePermissions: { include: { permission: true } } } },
+      },
+    });
+    const staffPermissionNames = [
+      ...(staff?.staffPermissions.map((item) => item.permission.name) ?? []),
+      ...(staff?.role.rolePermissions.map((item) => item.permission.name) ?? []),
+    ];
+    if (requiredPermissions.some((permission) => staffPermissionNames.includes(permission))) return shop;
+    throw new ForbiddenException('Forbidden module access');
+  }
 }

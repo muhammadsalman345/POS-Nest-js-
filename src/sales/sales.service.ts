@@ -15,7 +15,7 @@ export class SalesService {
   constructor(private readonly prisma: PrismaService, private readonly ownership: OwnershipService) {}
 
   async create(shopId: number, user: AuthUser, dto: CreateSaleDto, saleType: SaleType) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    await this.ownership.ensureShopPermission(shopId, user, 'sales.create');
     if (!dto.customerId && !dto.customer) throw new BadRequestException('customerId or customer is required');
     const requestedItems = dto.items?.length
       ? dto.items
@@ -151,7 +151,7 @@ export class SalesService {
   }
 
   async list(shopId: number, user: AuthUser, query: PaginationDto) {
-    await this.ownership.ensureShopAccess(shopId, user);
+    await this.ownership.ensureShopPermission(shopId, user, 'sales.view');
     const { page, limit, skip, take } = pagination(query);
     const search = query.search?.trim();
     const where: Prisma.SaleWhereInput = {
@@ -183,11 +183,13 @@ export class SalesService {
   async findOne(id: number, user: AuthUser) {
     const sale = await this.prisma.sale.findFirst({ where: { id, deletedAt: null }, include: { shop: true, customer: true, product: true, items: true, payments: true } });
     if (!sale) throw new NotFoundException('Sale not found');
-    await this.ownership.ensureShopAccess(sale.shopId, user);
+    await this.ownership.ensureShopPermission(sale.shopId, user, 'sales.view');
     return saleResource(sale);
   }
 
   async update(id: number, user: AuthUser, dto: UpdateSaleDto) {
+    const existing = await this.findSaleForAccess(id);
+    await this.ownership.ensureShopPermission(existing.shopId, user, 'sales.edit');
     const old = await this.findOne(id, user);
     const sale = await this.prisma.sale.update({ where: { id }, data: { salePrice: dto.salePrice, paymentMethod: dto.paymentMethod, warrantyDays: dto.warrantyDays, notes: dto.notes, updatedById: user.id } });
     await this.audit(user.id, 'UPDATE', id, old, sale);
@@ -195,6 +197,8 @@ export class SalesService {
   }
 
   async remove(id: number, user: AuthUser) {
+    const existing = await this.findSaleForAccess(id);
+    await this.ownership.ensureShopPermission(existing.shopId, user, 'sales.delete');
     const old = await this.findOne(id, user);
     await this.prisma.sale.update({ where: { id }, data: { deletedAt: new Date() } });
     await this.audit(user.id, 'DELETE', id, old, null);
@@ -206,7 +210,8 @@ export class SalesService {
   }
 
   async addPayment(id: number, user: AuthUser, dto: { amount: number; paymentMethod: PaymentMethod; referenceNo?: string; notes?: string }) {
-    const sale = await this.findOne(id, user);
+    const sale = await this.findSaleForAccess(id);
+    await this.ownership.ensureShopPermission(sale.shopId, user, 'sales.edit');
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.create({
         data: { shopId: sale.shopId, saleId: sale.id, customerId: sale.customerId, amount: Number(dto.amount), paymentMethod: dto.paymentMethod, referenceNo: dto.referenceNo, notes: dto.notes, createdById: user.id },
@@ -227,14 +232,16 @@ export class SalesService {
   }
 
   async cancel(id: number, user: AuthUser) {
-    const sale = await this.findOne(id, user);
+    const sale = await this.findSaleForAccess(id);
+    await this.ownership.ensureShopPermission(sale.shopId, user, 'sales.edit');
     await this.prisma.sale.update({ where: { id }, data: { status: SaleStatus.CANCELLED, updatedById: user.id } });
     await this.audit(user.id, 'CANCEL', id, sale, null);
     return { message: 'Sale cancelled' };
   }
 
   async refund(id: number, user: AuthUser) {
-    const sale = await this.findOne(id, user);
+    const sale = await this.findSaleForAccess(id);
+    await this.ownership.ensureShopPermission(sale.shopId, user, 'sales.edit');
     await this.prisma.sale.update({ where: { id }, data: { status: SaleStatus.REFUNDED, updatedById: user.id } });
     await this.audit(user.id, 'REFUND', id, sale, null);
     return { message: 'Sale refunded' };
@@ -244,5 +251,11 @@ export class SalesService {
     return this.prisma.auditLog.create({
       data: { userId, action, module: 'SALE', recordId: String(recordId), oldData: serializeAuditData(oldData), newData: serializeAuditData(newData) },
     });
+  }
+
+  private async findSaleForAccess(id: number) {
+    const sale = await this.prisma.sale.findFirst({ where: { id, deletedAt: null } });
+    if (!sale) throw new NotFoundException('Sale not found');
+    return sale;
   }
 }
