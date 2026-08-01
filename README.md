@@ -4,16 +4,16 @@ NestJS + Prisma backend for the Kinetic POS frontend.
 
 ## Database
 
-This project is currently configured for SQLite in `prisma/schema.prisma` for local development:
+This project is configured for MySQL in `prisma/schema.prisma`:
 
 ```prisma
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 ```
 
-Use `DATABASE_URL="file:./dev.db"` for the local SQLite database.
+Use a MySQL connection string for `DATABASE_URL`. Local development can point at your local MySQL database, while production should point at the Aiven MySQL service URI with SSL required. Keep both values in environment variables, not in source control.
 
 ## Setup
 
@@ -21,11 +21,16 @@ Use `DATABASE_URL="file:./dev.db"` for the local SQLite database.
 npm install
 cp .env.example .env
 npm run prisma:generate
-touch prisma/dev.db
-npx prisma db push
+npm run prisma:migrate
 npm run db:seed
 npm run start:dev
 ```
+
+For production deployments, run `npm run prisma:deploy` instead of `npm run prisma:migrate`.
+
+## Aiven Apps
+
+For Aiven Apps, deploy from the repository root and select `compose.yaml` as the manifest. The backend app is built from `POS-Nest-js-/Dockerfile` and expects production environment variables to be configured in Aiven, especially `DATABASE_URL`, `JWT_SECRET`, and `FRONTEND_URL`.
 
 Default API URL:
 
