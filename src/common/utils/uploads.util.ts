@@ -1,6 +1,6 @@
 import { join, normalize, sep } from 'path';
 
-export const uploadsRoot = join(__dirname, '..', '..', '..', 'uploads');
+export const uploadsRoot = join(process.cwd(), 'uploads');
 
 export const uploadDirectory = (...segments: string[]): string => join(uploadsRoot, ...segments);
 

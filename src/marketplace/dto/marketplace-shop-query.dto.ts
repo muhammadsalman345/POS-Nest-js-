@@ -1,8 +1,8 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
-import { ProductFilterDto } from '../../products/dto/product-filter.dto';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-export class MarketplaceProductQueryDto extends ProductFilterDto {
+export class MarketplaceShopQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   city?: string;
@@ -12,19 +12,13 @@ export class MarketplaceProductQueryDto extends ProductFilterDto {
   area?: string;
 
   @IsOptional()
-  @Transform(({ value }) => Number(value))
-  @IsInt()
-  @Min(1)
-  shopId?: number;
-
-  @IsOptional()
   @IsString()
-  category?: string;
+  type?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
-  inStockOnly?: boolean;
+  onlineSelling?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
