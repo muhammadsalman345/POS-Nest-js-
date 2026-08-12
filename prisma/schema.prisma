@@ -205,6 +205,7 @@ model User {
   tokenVersion Int        @default(0)
   refreshTokenHash String?
   refreshTokenExpiresAt DateTime?
+  emailVerifiedAt DateTime?
   lastLoginAt DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -214,11 +215,30 @@ model User {
   auditLogs   AuditLog[]
   staff       ShopStaff[]
   userPermissions UserPermission[]
+  emailOtps   EmailOtp[]
 
   @@index([role])
   @@index([status])
   @@index([refreshTokenExpiresAt])
+  @@index([emailVerifiedAt])
   @@index([deletedAt])
+}
+
+model EmailOtp {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  email      String
+  purpose    String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose, consumedAt])
+  @@index([email, purpose])
+  @@index([expiresAt])
 }
 
 model Shop {
@@ -907,8 +927,8 @@ model AuditLog {
   referenceId   String?
   oldData       String?
   newData       String?
-  oldValues     Json?
-  newValues     Json?
+  oldValues     String?
+  newValues     String?
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())

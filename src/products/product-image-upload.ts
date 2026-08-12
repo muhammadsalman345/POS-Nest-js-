@@ -4,6 +4,12 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { uploadDirectory } from '../common/utils/uploads.util';
 
+export interface UploadedProductImageFile {
+  filename?: string;
+  size: number;
+  mimetype: string;
+}
+
 const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 

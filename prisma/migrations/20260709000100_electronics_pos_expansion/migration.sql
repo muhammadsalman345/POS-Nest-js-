@@ -455,8 +455,8 @@ ALTER TABLE `AuditLog`
   ADD COLUMN `shopId` INTEGER NULL,
   ADD COLUMN `referenceType` VARCHAR(191) NULL,
   ADD COLUMN `referenceId` VARCHAR(191) NULL,
-  ADD COLUMN `oldValues` JSON NULL,
-  ADD COLUMN `newValues` JSON NULL,
+  ADD COLUMN `oldValues` VARCHAR(191) NULL,
+  ADD COLUMN `newValues` VARCHAR(191) NULL,
   ADD COLUMN `ipAddress` VARCHAR(191) NULL,
   ADD COLUMN `userAgent` VARCHAR(191) NULL;
 CREATE INDEX `AuditLog_shopId_idx` ON `AuditLog`(`shopId`);

@@ -1,6 +1,6 @@
 # POS NestJS Application - Complete API Endpoints Documentation
 
-**Last Updated:** April 30, 2026
+**Last Updated:** August 12, 2026
 
 ---
 
@@ -24,7 +24,7 @@
 ## Auth Module
 
 **Base Path:** `/auth`  
-**Auth Required:** No for register/login, Yes for profile/change-password  
+**Auth Required:** No for register/login/email OTP/password reset, Yes for profile/change-password  
 **Tags:** `Auth`
 
 ### Endpoints
@@ -38,13 +38,18 @@
   {
     name: string (required)
     phone: string (required)
-    email?: string (optional, must be valid email)
+    email: string (required, must be valid email)
     password: string (required, min length 6)
     confirmPassword?: string (optional)
-    role: UserRole enum (required) - ADMIN | SHOPKEEPER | CUSTOMER
+    role?: UserRole enum (optional, public registration only allows OWNER)
   }
   ```
-- **Response Type:** User object with JWT token
+- **Response Type:** Pending owner user object and message. Sends email verification OTP.
+- **Duplicate Handling:**
+  - If the email exists but is not verified, the existing signup is refreshed, a new OTP is sent, and `nextStep` is `VERIFY_EMAIL`.
+  - If the email is already verified and pending approval, the response is `409 Conflict` with an approval message.
+  - If the email belongs to an existing active account, the response is `409 Conflict` with login/reset guidance.
+  - If the phone belongs to another account, the response is `409 Conflict`.
 - **Query Parameters:** None
 
 #### 2. Login
@@ -62,7 +67,63 @@
 - **Response Type:** User object with JWT token
 - **Query Parameters:** None
 
-#### 3. Get Profile
+#### 3. Verify Email
+- **HTTP Method:** `POST`
+- **Route:** `/auth/verify-email`
+- **Auth Required:** No
+- **Request Body (DTO):** `VerifyEmailDto`
+  ```typescript
+  {
+    email: string (required, must be valid email)
+    otp: string (required, 6 digits)
+  }
+  ```
+- **Response Type:** Success message
+- **Query Parameters:** None
+
+#### 4. Resend Email Verification OTP
+- **HTTP Method:** `POST`
+- **Route:** `/auth/resend-email-verification`
+- **Auth Required:** No
+- **Request Body (DTO):** `RequestPasswordResetDto`
+  ```typescript
+  {
+    email: string (required, must be valid email)
+  }
+  ```
+- **Response Type:** Generic success message
+- **Query Parameters:** None
+
+#### 5. Forgot Password
+- **HTTP Method:** `POST`
+- **Route:** `/auth/forgot-password`
+- **Auth Required:** No
+- **Request Body (DTO):** `RequestPasswordResetDto`
+  ```typescript
+  {
+    email: string (required, must be valid email)
+  }
+  ```
+- **Response Type:** Generic success message. Sends password reset OTP if the account exists.
+- **Query Parameters:** None
+
+#### 6. Reset Password
+- **HTTP Method:** `POST`
+- **Route:** `/auth/reset-password`
+- **Auth Required:** No
+- **Request Body (DTO):** `ResetPasswordDto`
+  ```typescript
+  {
+    email: string (required, must be valid email)
+    otp: string (required, 6 digits)
+    newPassword: string (required, min length 6)
+    confirmPassword?: string (optional)
+  }
+  ```
+- **Response Type:** Success message. Clears existing sessions.
+- **Query Parameters:** None
+
+#### 7. Get Profile
 - **HTTP Method:** `GET`
 - **Route:** `/auth/profile`
 - **Auth Required:** Yes (JWT Bearer Token)
@@ -70,7 +131,7 @@
 - **Response Type:** User profile object with auth details
 - **Query Parameters:** None
 
-#### 4. Change Password
+#### 8. Change Password
 - **HTTP Method:** `POST`
 - **Route:** `/auth/change-password`
 - **Auth Required:** Yes (JWT Bearer Token)

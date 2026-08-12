@@ -30,7 +30,7 @@ import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductImageDto } from './dto/product-image.dto';
 import { UpdateProductStatusDto } from './dto/update-status.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { productImagePath } from './product-image-upload';
+import { productImagePath, UploadedProductImageFile } from './product-image-upload';
 import {
   productCollection,
   productResource,
@@ -320,7 +320,7 @@ export class ProductsService {
     return { message: 'Image deleted' };
   }
 
-  uploadedImage(file: Express.Multer.File) {
+  uploadedImage(file: UploadedProductImageFile) {
     if (!file?.filename) {
       throw new BadRequestException('Image file is required.');
     }

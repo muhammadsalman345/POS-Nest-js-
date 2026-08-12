@@ -8,6 +8,9 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -27,6 +30,26 @@ export class AuthController {
   @Post('refresh')
   refreshToken(@Body() dto: RefreshTokenDto) {
     return this.auth.refreshToken(dto);
+  }
+
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto);
+  }
+
+  @Post('resend-email-verification')
+  resendEmailVerification(@Body() dto: RequestPasswordResetDto) {
+    return this.auth.resendEmailVerification(dto);
+  }
+
+  @Post('forgot-password')
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.auth.requestPasswordReset(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto);
   }
 
   @Get('profile')

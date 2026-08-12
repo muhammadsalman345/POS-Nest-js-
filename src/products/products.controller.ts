@@ -8,7 +8,7 @@ import { AuthUser } from '../common/types/auth-user.type';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductFilterDto } from './dto/product-filter.dto';
 import { ProductImageDto } from './dto/product-image.dto';
-import { productImageUploadOptions } from './product-image-upload';
+import { productImageUploadOptions, UploadedProductImageFile } from './product-image-upload';
 import { UpdateProductStatusDto } from './dto/update-status.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -52,7 +52,7 @@ export class ProductsController {
   findByBarcode(@Param('barcode') barcode: string, @CurrentUser() user: AuthUser) { return this.products.findByBarcode(barcode, user); }
   @Post('products/images')
   @UseInterceptors(FileInterceptor('image', productImageUploadOptions))
-  uploadImage(@UploadedFile() file: Express.Multer.File) { return this.products.uploadedImage(file); }
+  uploadImage(@UploadedFile() file: UploadedProductImageFile) { return this.products.uploadedImage(file); }
   @Delete('products/images')
   deleteUploadedImage(@Query('path') path: string) { return this.products.deleteUploadedImage(path); }
   @Get('products/:id')
