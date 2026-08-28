@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { MarketplaceOrderDto } from './dto/marketplace-order.dto';
 import { MarketplaceProductQueryDto } from './dto/marketplace-product-query.dto';
 import { MarketplaceShopQueryDto } from './dto/marketplace-shop-query.dto';
 import { MarketplaceService } from './marketplace.service';
@@ -16,4 +17,6 @@ export class MarketplaceController {
   products(@Query() query: MarketplaceProductQueryDto) { return this.marketplace.productsList(query); }
   @Get('products/:id')
   product(@Param('id') id: string) { return this.marketplace.product(+id); }
+  @Post('orders')
+  order(@Body() dto: MarketplaceOrderDto) { return this.marketplace.order(dto); }
 }

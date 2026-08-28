@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   MarketplaceStatus,
+  PaymentMethod,
+  PaymentStatus,
   Prisma,
   ProductStatus,
+  SaleStatus,
   SaleMode,
+  SaleType,
   ShopApprovalStatus,
   ShopStatus,
 } from '@prisma/client';
@@ -11,6 +15,8 @@ import { paginated, pagination } from '../common/utils/pagination.util';
 import { ProductsService } from '../products/products.service';
 import { productCollection } from '../products/resources/product.resource';
 import { PrismaService } from '../prisma/prisma.service';
+import { saleResource } from '../sales/resources/sale.resource';
+import { MarketplaceOrderDto } from './dto/marketplace-order.dto';
 import { MarketplaceProductQueryDto } from './dto/marketplace-product-query.dto';
 import { MarketplaceShopQueryDto } from './dto/marketplace-shop-query.dto';
 
@@ -188,6 +194,155 @@ export class MarketplaceService {
     return product;
   }
 
+  async order(dto: MarketplaceOrderDto) {
+    if (!dto.items?.length) {
+      throw new BadRequestException('At least one product is required');
+    }
+
+    if (!dto.customer?.name?.trim() || !dto.customer?.phone?.trim() || !dto.customer?.address?.trim()) {
+      throw new BadRequestException('Customer name, phone, and delivery address are required');
+    }
+
+    const requestedItems = this.compactOrderItems(dto);
+    const productIds = requestedItems.map((item) => item.productId);
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        deletedAt: null,
+        status: { in: [ProductStatus.IN_STOCK, ProductStatus.AVAILABLE] },
+        saleMode: { in: [SaleMode.ONLINE_MARKETPLACE, SaleMode.BOTH] },
+        marketplaceStatus: MarketplaceStatus.PUBLISHED,
+      },
+      include: {
+        shop: true,
+      },
+    });
+
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('One or more products are no longer available');
+    }
+
+    const shopIds = [...new Set(products.map((product) => product.shopId))];
+    if (shopIds.length !== 1) {
+      throw new BadRequestException('Checkout supports one shop per COD order');
+    }
+
+    const shop = products[0].shop;
+    if (
+      !shop ||
+      !shop.isActive ||
+      shop.status !== ShopStatus.ACTIVE ||
+      shop.approvalStatus !== ShopApprovalStatus.APPROVED ||
+      !shop.onlineSellingEnabled
+    ) {
+      throw new BadRequestException('Shop is not available for marketplace orders');
+    }
+
+    if (!shop.cashOnDeliveryEnabled) {
+      throw new BadRequestException('Cash on delivery is not enabled for this shop');
+    }
+
+    const orderItems = requestedItems.map((item) => {
+      const product = products.find((candidate) => candidate.id === item.productId);
+      if (!product) throw new NotFoundException('Product not found');
+      if (Number(product.availableQuantity) < item.quantity) {
+        throw new BadRequestException(`${product.name || product.brand} has insufficient stock`);
+      }
+      const unitPrice = this.productOrderPrice(product);
+      if (unitPrice <= 0) {
+        throw new BadRequestException(`${product.name || product.brand} does not have a valid sale price`);
+      }
+      return {
+        item,
+        product,
+        unitPrice,
+        totalPrice: unitPrice * item.quantity,
+      };
+    });
+
+    const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const invoiceNumber = `MKT-${shop.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.create({
+        data: {
+          shopId: shop.id,
+          name: dto.customer.name.trim(),
+          phone: dto.customer.phone.trim(),
+          address: dto.customer.address.trim(),
+          city: dto.customer.city?.trim(),
+          country: dto.customer.country?.trim() || 'Pakistan',
+          notes: 'Marketplace COD customer',
+        },
+      });
+
+      const sale = await tx.sale.create({
+        data: {
+          shopId: shop.id,
+          productId: orderItems[0].product.id,
+          customerId: customer.id,
+          salePrice: subtotal,
+          paymentMethod: PaymentMethod.OTHER,
+          saleType: SaleType.ONLINE,
+          invoiceNumber,
+          invoiceNo: invoiceNumber,
+          subtotal,
+          discountAmount: 0,
+          taxAmount: 0,
+          totalAmount: subtotal,
+          paidAmount: 0,
+          dueAmount: subtotal,
+          paymentStatus: PaymentStatus.UNPAID,
+          status: SaleStatus.COMPLETED,
+          notes: [
+            'Marketplace COD order',
+            dto.customer.address ? `Delivery: ${dto.customer.address}` : '',
+            dto.notes?.trim() ? `Note: ${dto.notes.trim()}` : '',
+          ].filter(Boolean).join(' | '),
+        },
+        include: { shop: true, customer: true, product: true, items: true, payments: true },
+      });
+
+      for (const { item, product, unitPrice, totalPrice } of orderItems) {
+        const soldQuantity = Number(product.soldQuantity) + item.quantity;
+        const availableQuantity = Math.max(Number(product.availableQuantity) - item.quantity, 0);
+
+        await tx.saleItem.create({
+          data: {
+            saleId: sale.id,
+            productId: product.id,
+            productName: product.name || `${product.brand} ${product.model}`.trim(),
+            imei1: product.imei1,
+            imei2: product.imei2,
+            serialNumber: product.serialNumber,
+            quantity: item.quantity,
+            unitPrice,
+            discountAmount: 0,
+            totalPrice,
+          },
+        });
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: {
+            soldQuantity,
+            availableQuantity,
+            status: availableQuantity <= 0 ? ProductStatus.SOLD : ProductStatus.AVAILABLE,
+            finalSalePrice: unitPrice,
+          },
+        });
+      }
+
+      return saleResource(
+        await tx.sale.findUnique({
+          where: { id: sale.id },
+          include: { shop: true, customer: true, product: true, items: true, payments: true },
+        }),
+      );
+    });
+  }
+
   private geoQuery(query: {
     latitude?: number;
     longitude?: number;
@@ -206,6 +361,33 @@ export class MarketplaceService {
       longitude: Number(query.longitude),
       radiusKm: Number(query.radiusKm),
     };
+  }
+
+  private compactOrderItems(dto: MarketplaceOrderDto): Array<{ productId: number; quantity: number }> {
+    const itemMap = new Map<number, number>();
+    for (const item of dto.items) {
+      const productId = Number(item.productId);
+      const quantity = Number(item.quantity || 1);
+      if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
+        throw new BadRequestException('Invalid order item');
+      }
+      itemMap.set(productId, (itemMap.get(productId) ?? 0) + quantity);
+    }
+
+    return [...itemMap.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  }
+
+  private productOrderPrice(product: {
+    salePrice?: unknown;
+    minimumSalePrice?: unknown;
+    purchasePrice?: unknown;
+  }): number {
+    return this.numberOrZero(product.salePrice ?? product.minimumSalePrice ?? product.purchasePrice);
+  }
+
+  private numberOrZero(value: unknown): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private shopBoundsWhere(geo: GeoQuery): Prisma.ShopWhereInput {

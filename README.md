@@ -13,7 +13,7 @@ datasource db {
 }
 ```
 
-Use a MySQL connection string for `DATABASE_URL`. Local development can point at your local MySQL database, while production should point at the Aiven MySQL service URI with SSL required. Keep both values in environment variables, not in source control.
+Use a MySQL connection string for `DATABASE_URL`. Local development uses `dev_db`, while production should use `live_db` from the hosting provider or managed MySQL service. Keep both values in environment variables, not in source control.
 
 ## Setup
 
@@ -28,9 +28,25 @@ npm run start:dev
 
 For production deployments, run `npm run prisma:deploy` instead of `npm run prisma:migrate`.
 
+## Fresh Database Reset
+
+Local development:
+
+```bash
+npm run db:reset:dev
+```
+
+Local copy of the live database:
+
+```bash
+npm run db:reset:live
+```
+
+The reset commands are guarded: `dev` only resets `dev_db`, and `live` only resets `live_db`. Remote live databases require `--allow-remote-live`.
+
 ## Aiven Apps
 
-For Aiven Apps, deploy from the repository root and select `compose.yaml` as the manifest. The backend app is built from `POS-Nest-js-/Dockerfile` and expects production environment variables to be configured in Aiven, especially `DATABASE_URL`, `JWT_SECRET`, and `FRONTEND_URL`.
+For Aiven Apps, deploy from the repository root and select `compose.yaml` as the manifest. The backend app is built from `POS-Nest-js-/Dockerfile` and expects production environment variables to be configured in Aiven, especially `DATABASE_URL` pointing at `live_db`, `JWT_SECRET`, and `FRONTEND_URL`.
 
 Default API URL:
 
@@ -49,7 +65,7 @@ http://localhost:3000/api/docs
 Set the frontend API URL in:
 
 ```text
-kinetic-pos/src/environments/environment.ts
+POS-Ionic/src/environments/environment.ts
 ```
 
 Default development value:

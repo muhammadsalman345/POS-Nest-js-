@@ -36,11 +36,11 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # dotenv environment variable files
-# .env
-# .env.*
-# !.env.example
-# !.env.local.example
-# !.env.production.example
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.production.example
 
 # uploads and runtime-generated files
 /uploads
@@ -48,6 +48,8 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+.cache
+*.tsbuildinfo
 
 # Runtime data
 pids

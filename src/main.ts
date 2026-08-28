@@ -8,6 +8,30 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { uploadsRoot } from './common/utils/uploads.util';
 
+const defaultCorsOrigins = [
+  'http://localhost:4200',
+  'http://localhost:8100',
+  'http://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+];
+
+const quickTunnelOriginPattern = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i;
+
+function configuredCorsOrigins(): string[] {
+  return [
+    ...defaultCorsOrigins,
+    ...(process.env.FRONTEND_URL ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ];
+}
+
+function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
+  return allowedOrigins.includes(origin) || quickTunnelOriginPattern.test(origin);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
@@ -15,10 +39,18 @@ async function bootstrap() {
     mkdirSync(uploadsRoot, { recursive: true });
   }
   app.use('/uploads', express.static(uploadsRoot));
-  const corsOrigin = process.env.FRONTEND_URL
-    ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim())
-    : true;
-  app.enableCors({ origin: corsOrigin, credentials: true });
+  const corsOrigins = configuredCorsOrigins();
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin || isAllowedCorsOrigin(origin, corsOrigins)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
+    },
+    credentials: true,
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
