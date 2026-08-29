@@ -21,6 +21,7 @@ export class SuperAdminSeeder {
         role: UserRole.SUPER_ADMIN,
         status: UserStatus.ACTIVE,
         isActive: true,
+        emailVerifiedAt: new Date(),
       },
       create: {
         name: 'Super Admin',
@@ -30,6 +31,7 @@ export class SuperAdminSeeder {
         role: UserRole.SUPER_ADMIN,
         status: UserStatus.ACTIVE,
         isActive: true,
+        emailVerifiedAt: new Date(),
       },
     });
 
