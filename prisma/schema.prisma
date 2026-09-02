@@ -118,6 +118,14 @@ enum MarketplaceStatus {
   REJECTED
 }
 
+enum MarketplaceOrderStatus {
+  PENDING
+  CONFIRMED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
 enum ImeiEventType {
   PURCHASE
   SALE
@@ -299,6 +307,7 @@ model Shop {
   staff             ShopStaff[]
   alerts            Alert[]
   auditLogs         AuditLog[]
+  marketplaceOrders MarketplaceOrder[]
 
   @@index([ownerId])
   @@index([status])
@@ -507,6 +516,7 @@ model Product {
   warranties            Warranty[]
   warrantyClaims        WarrantyClaim[]
   repairs               Repair[]
+  marketplaceOrderItems MarketplaceOrderItem[]
 
   @@index([shopId])
   @@index([sellerId])
@@ -622,6 +632,49 @@ model SaleItem {
   product        Product @relation(fields: [productId], references: [id])
 
   @@index([saleId])
+  @@index([productId])
+}
+
+model MarketplaceOrder {
+  id              Int                    @id @default(autoincrement())
+  shopId          Int
+  orderNo         String                 @unique
+  status          MarketplaceOrderStatus @default(PENDING)
+  paymentMethod   String                 @default("COD")
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  deliveryAddress String
+  city            String?
+  country         String?                @default("Pakistan")
+  subtotal        Decimal                @default(0)
+  totalAmount     Decimal                @default(0)
+  notes           String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  cancelledAt     DateTime?
+  deliveredAt     DateTime?
+  shop            Shop                   @relation(fields: [shopId], references: [id])
+  items           MarketplaceOrderItem[]
+
+  @@index([shopId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MarketplaceOrderItem {
+  id          Int              @id @default(autoincrement())
+  orderId     Int
+  productId   Int
+  productName String
+  sku         String?
+  quantity    Int              @default(1)
+  unitPrice   Decimal
+  totalPrice  Decimal
+  order       MarketplaceOrder @relation(fields: [orderId], references: [id])
+  product     Product          @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
   @@index([productId])
 }
 

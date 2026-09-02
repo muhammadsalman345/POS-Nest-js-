@@ -1,21 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
+  AlertType,
   MarketplaceStatus,
-  PaymentMethod,
-  PaymentStatus,
   Prisma,
   ProductStatus,
-  SaleStatus,
   SaleMode,
-  SaleType,
   ShopApprovalStatus,
   ShopStatus,
 } from '@prisma/client';
+import * as nodemailer from 'nodemailer';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { OwnershipService } from '../common/services/ownership.service';
+import { AuthUser } from '../common/types/auth-user.type';
 import { paginated, pagination } from '../common/utils/pagination.util';
 import { ProductsService } from '../products/products.service';
 import { productCollection } from '../products/resources/product.resource';
 import { PrismaService } from '../prisma/prisma.service';
-import { saleResource } from '../sales/resources/sale.resource';
 import { MarketplaceOrderDto } from './dto/marketplace-order.dto';
 import { MarketplaceProductQueryDto } from './dto/marketplace-product-query.dto';
 import { MarketplaceShopQueryDto } from './dto/marketplace-shop-query.dto';
@@ -28,9 +29,13 @@ interface GeoQuery {
 
 @Injectable()
 export class MarketplaceService {
+  private readonly logger = new Logger(MarketplaceService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly products: ProductsService,
+    private readonly config: ConfigService,
+    private readonly ownership: OwnershipService,
   ) {}
 
   async shops(query: MarketplaceShopQueryDto) {
@@ -105,6 +110,23 @@ export class MarketplaceService {
     });
     if (!shop) throw new NotFoundException('Shop not found');
     return shop;
+  }
+
+  async shopOrders(shopId: number, user: AuthUser, query: PaginationDto) {
+    await this.ownership.ensureShopAccess(shopId, user);
+    const { page, limit, skip, take } = pagination(query);
+    const [items, total] = await Promise.all([
+      (this.prisma as any).marketplaceOrder.findMany({
+        where: { shopId },
+        include: { items: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      (this.prisma as any).marketplaceOrder.count({ where: { shopId } }),
+    ]);
+
+    return paginated(items.map((order: any) => this.marketplaceOrderResource(order)), total, page, limit);
   }
 
   async productsList(query: MarketplaceProductQueryDto) {
@@ -215,7 +237,11 @@ export class MarketplaceService {
         marketplaceStatus: MarketplaceStatus.PUBLISHED,
       },
       include: {
-        shop: true,
+        shop: {
+          include: {
+            owner: { select: { email: true, name: true, phone: true } },
+          },
+        },
       },
     });
 
@@ -262,85 +288,183 @@ export class MarketplaceService {
     });
 
     const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const invoiceNumber = `MKT-${shop.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const orderNo = `MKT-ORDER-${shop.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    return this.prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
+    const order = await this.prisma.$transaction(async (tx) => {
+      const marketplaceOrder = await (tx as any).marketplaceOrder.create({
         data: {
           shopId: shop.id,
-          name: dto.customer.name.trim(),
-          phone: dto.customer.phone.trim(),
-          address: dto.customer.address.trim(),
+          orderNo,
+          status: 'PENDING',
+          paymentMethod: 'COD',
+          customerName: dto.customer.name.trim(),
+          customerPhone: dto.customer.phone.trim(),
+          customerEmail: dto.customer.email?.trim().toLowerCase() || undefined,
+          deliveryAddress: dto.customer.address.trim(),
           city: dto.customer.city?.trim(),
           country: dto.customer.country?.trim() || 'Pakistan',
-          notes: 'Marketplace COD customer',
+          subtotal,
+          totalAmount: subtotal,
+          notes: dto.notes?.trim() || undefined,
+          items: {
+            create: orderItems.map(({ item, product, unitPrice, totalPrice }) => ({
+              productId: product.id,
+              productName: product.name || `${product.brand} ${product.model}`.trim(),
+              sku: product.sku,
+              quantity: item.quantity,
+              unitPrice,
+              totalPrice,
+            })),
+          },
+        },
+        include: {
+          shop: {
+            include: {
+              owner: { select: { email: true, name: true, phone: true } },
+            },
+          },
+          items: true,
         },
       });
 
-      const sale = await tx.sale.create({
+      await tx.alert.create({
         data: {
           shopId: shop.id,
-          productId: orderItems[0].product.id,
-          customerId: customer.id,
-          salePrice: subtotal,
-          paymentMethod: PaymentMethod.OTHER,
-          saleType: SaleType.ONLINE,
-          invoiceNumber,
-          invoiceNo: invoiceNumber,
-          subtotal,
-          discountAmount: 0,
-          taxAmount: 0,
-          totalAmount: subtotal,
-          paidAmount: 0,
-          dueAmount: subtotal,
-          paymentStatus: PaymentStatus.UNPAID,
-          status: SaleStatus.COMPLETED,
-          notes: [
-            'Marketplace COD order',
-            dto.customer.address ? `Delivery: ${dto.customer.address}` : '',
-            dto.notes?.trim() ? `Note: ${dto.notes.trim()}` : '',
-          ].filter(Boolean).join(' | '),
+          type: AlertType.PENDING_DELIVERY,
+          title: 'New marketplace COD order',
+          message: `${dto.customer.name.trim()} requested ${orderItems.length} product(s) for ${subtotal} PKR.`,
+          referenceType: 'MARKETPLACE_ORDER',
+          referenceId: String(marketplaceOrder.id),
         },
-        include: { shop: true, customer: true, product: true, items: true, payments: true },
       });
 
-      for (const { item, product, unitPrice, totalPrice } of orderItems) {
-        const soldQuantity = Number(product.soldQuantity) + item.quantity;
-        const availableQuantity = Math.max(Number(product.availableQuantity) - item.quantity, 0);
+      return marketplaceOrder;
+    });
 
-        await tx.saleItem.create({
-          data: {
-            saleId: sale.id,
-            productId: product.id,
-            productName: product.name || `${product.brand} ${product.model}`.trim(),
-            imei1: product.imei1,
-            imei2: product.imei2,
-            serialNumber: product.serialNumber,
-            quantity: item.quantity,
-            unitPrice,
-            discountAmount: 0,
-            totalPrice,
-          },
-        });
-
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            soldQuantity,
-            availableQuantity,
-            status: availableQuantity <= 0 ? ProductStatus.SOLD : ProductStatus.AVAILABLE,
-            finalSalePrice: unitPrice,
-          },
-        });
-      }
-
-      return saleResource(
-        await tx.sale.findUnique({
-          where: { id: sale.id },
-          include: { shop: true, customer: true, product: true, items: true, payments: true },
-        }),
+    void this.sendMarketplaceOrderEmail(order).catch((error: unknown) => {
+      this.logger.warn(
+        `Marketplace order email failed for ${order.orderNo}: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
+
+    return this.marketplaceOrderResource(order);
+  }
+
+  private marketplaceOrderResource(order: any) {
+    return {
+      id: order.id,
+      orderNo: order.orderNo,
+      invoiceNo: order.orderNo,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      totalAmount: order.totalAmount,
+      customer: {
+        name: order.customerName,
+        phone: order.customerPhone,
+        email: order.customerEmail,
+        address: order.deliveryAddress,
+        city: order.city,
+        country: order.country,
+      },
+      shop: order.shop
+        ? {
+            id: order.shop.id,
+            name: order.shop.name,
+            email: order.shop.email,
+            phone: order.shop.phone,
+          }
+        : null,
+      items: order.items,
+      createdAt: order.createdAt,
+    };
+  }
+
+  private async sendMarketplaceOrderEmail(order: any): Promise<void> {
+    const recipients = [
+      order.shop?.email,
+      order.shop?.owner?.email,
+    ].filter((email): email is string => Boolean(email));
+
+    if (!recipients.length) {
+      this.logger.warn(`Marketplace COD order ${order.orderNo} has no shop email recipient`);
+      return;
+    }
+
+    const host = this.config.get<string>('SMTP_HOST');
+    const port = Number(this.config.get<string>('SMTP_PORT') || 587);
+    const user = this.config.get<string>('SMTP_USER');
+    const pass = this.config.get<string>('SMTP_PASS');
+    const from = this.config.get<string>('SMTP_FROM') || user;
+
+    if (!host || !user || !pass || !from) {
+      this.logger.warn(`SMTP is not configured. Marketplace COD order ${order.orderNo} should be sent to ${recipients.join(', ')}`);
+      return;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+
+    await transporter.sendMail({
+      from,
+      to: [...new Set(recipients)].join(','),
+      subject: `New COD marketplace order ${order.orderNo}`,
+      text: this.marketplaceOrderEmailText(order),
+      html: this.marketplaceOrderEmailHtml(order),
+    });
+  }
+
+  private marketplaceOrderEmailText(order: any): string {
+    const items = (order.items || [])
+      .map((item: any) => `- ${item.productName} x ${item.quantity}: ${item.totalPrice} PKR`)
+      .join('\n');
+
+    return [
+      `New COD marketplace order: ${order.orderNo}`,
+      `Customer: ${order.customerName}`,
+      `Phone: ${order.customerPhone}`,
+      order.customerEmail ? `Email: ${order.customerEmail}` : '',
+      `Address: ${order.deliveryAddress}`,
+      order.city ? `City: ${order.city}` : '',
+      '',
+      items,
+      '',
+      `Total: ${order.totalAmount} PKR`,
+      order.notes ? `Note: ${order.notes}` : '',
+      '',
+      'This is an order request only. Create the actual sale/slip after delivery or hand-over.',
+    ].filter(Boolean).join('\n');
+  }
+
+  private marketplaceOrderEmailHtml(order: any): string {
+    const items = (order.items || [])
+      .map((item: any) => `<li>${this.escapeHtml(item.productName)} x ${item.quantity}: ${item.totalPrice} PKR</li>`)
+      .join('');
+
+    return `
+      <div style="font-family: Arial, sans-serif; color: #172033;">
+        <h2>New COD marketplace order</h2>
+        <p><strong>${this.escapeHtml(order.orderNo)}</strong></p>
+        <p>${this.escapeHtml(order.customerName)} | ${this.escapeHtml(order.customerPhone)}${order.customerEmail ? ` | ${this.escapeHtml(order.customerEmail)}` : ''}</p>
+        <p>${this.escapeHtml(order.deliveryAddress)}${order.city ? `, ${this.escapeHtml(order.city)}` : ''}</p>
+        <ul>${items}</ul>
+        <p><strong>Total:</strong> ${order.totalAmount} PKR</p>
+        ${order.notes ? `<p><strong>Note:</strong> ${this.escapeHtml(order.notes)}</p>` : ''}
+        <p>This is an order request only. Create the actual sale/slip after delivery or hand-over.</p>
+      </div>
+    `;
+  }
+
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private geoQuery(query: {
