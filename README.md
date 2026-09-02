@@ -73,3 +73,11 @@ Default development value:
 ```ts
 apiUrl: 'http://localhost:3000/api'
 ```
+
+
+
+notes
+npm run db:reset:dev
+for reset db
+npm run db:seed
+for seed data 

@@ -1,0 +1,12 @@
+ALTER TABLE `Shop`
+  ADD COLUMN `timezone` VARCHAR(191) NOT NULL DEFAULT 'Asia/Karachi',
+  ADD COLUMN `registrationNumber` VARCHAR(191) NULL,
+  ADD COLUMN `taxRegistrationNumber` VARCHAR(191) NULL,
+  ADD COLUMN `openingTime` VARCHAR(191) NOT NULL DEFAULT '09:00',
+  ADD COLUMN `closingTime` VARCHAR(191) NOT NULL DEFAULT '22:00',
+  ADD COLUMN `open24Hours` BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN `workingDays` LONGTEXT NULL,
+  ADD COLUMN `contactPersonName` VARCHAR(191) NULL,
+  ADD COLUMN `contactPersonDesignation` VARCHAR(191) NULL,
+  ADD COLUMN `contactPersonPhone` VARCHAR(191) NULL,
+  ADD COLUMN `contactPersonEmail` VARCHAR(191) NULL;

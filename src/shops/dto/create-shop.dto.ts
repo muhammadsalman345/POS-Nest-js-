@@ -1,6 +1,6 @@
 import { SaleMode, ShopStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateShopDto {
   @IsString()
@@ -70,10 +70,56 @@ export class CreateShopDto {
   currency?: string;
 
   @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber()
   @Min(0)
   taxPercentage?: number;
+
+  @IsOptional()
+  @IsString()
+  registrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  taxRegistrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  openingTime?: string;
+
+  @IsOptional()
+  @IsString()
+  closingTime?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  open24Hours?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  workingDays?: string[];
+
+  @IsOptional()
+  @IsString()
+  contactPersonName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPersonDesignation?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPersonPhone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  contactPersonEmail?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')

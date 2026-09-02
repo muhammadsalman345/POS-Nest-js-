@@ -269,6 +269,17 @@ model Shop {
   description       String?
   currency          String             @default("PKR")
   taxPercentage     Decimal            @default(0)
+  timezone          String             @default("Asia/Karachi")
+  registrationNumber String?
+  taxRegistrationNumber String?
+  openingTime       String             @default("09:00")
+  closingTime       String             @default("22:00")
+  open24Hours       Boolean            @default(false)
+  workingDays       String?            @db.Text
+  contactPersonName String?
+  contactPersonDesignation String?
+  contactPersonPhone String?
+  contactPersonEmail String?
   inventoryTrackingEnabled Boolean     @default(true)
   lowStockAlertsEnabled Boolean        @default(true)
   allowNegativeStock Boolean           @default(false)

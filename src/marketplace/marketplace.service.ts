@@ -80,7 +80,12 @@ export class MarketplaceService {
         .filter((shop) => shop.distanceKm === undefined || shop.distanceKm <= geo.radiusKm)
         .sort((first, second) => (first.distanceKm ?? 9999) - (second.distanceKm ?? 9999));
 
-      return paginated(nearbyItems.slice(skip, skip + take), nearbyItems.length, page, limit);
+      return paginated(
+        nearbyItems.slice(skip, skip + take).map((shop) => this.shopResource(shop)),
+        nearbyItems.length,
+        page,
+        limit,
+      );
     }
 
     const [items, total] = await this.prisma.$transaction([
@@ -94,7 +99,7 @@ export class MarketplaceService {
       this.prisma.shop.count({ where }),
     ]);
 
-    return paginated(items, total, page, limit);
+    return paginated(items.map((shop) => this.shopResource(shop)), total, page, limit);
   }
 
   async shop(id: number) {
@@ -109,7 +114,7 @@ export class MarketplaceService {
       select: this.shopSelect(),
     });
     if (!shop) throw new NotFoundException('Shop not found');
-    return shop;
+    return this.shopResource(shop);
   }
 
   async shopOrders(shopId: number, user: AuthUser, query: PaginationDto) {
@@ -171,7 +176,15 @@ export class MarketplaceService {
 
     if (!geo) {
       const total = await this.prisma.product.count({ where });
-      return paginated(productCollection(items), total, page, limit);
+      return paginated(
+        productCollection(items).map((product) => ({
+          ...product,
+          shop: this.shopResource(product.shop),
+        })),
+        total,
+        page,
+        limit,
+      );
     }
 
     const nearbyItems = items
@@ -184,6 +197,7 @@ export class MarketplaceService {
     const pageItems = nearbyItems.slice(skip, skip + take);
     const data = productCollection(pageItems).map((product, index) => ({
       ...product,
+      shop: this.shopResource(product.shop),
       distanceKm: pageItems[index]?.distanceKm,
     }));
 
@@ -213,7 +227,10 @@ export class MarketplaceService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
-    return product;
+    return {
+      ...product,
+      shop: this.shopResource(product.shop),
+    };
   }
 
   async order(dto: MarketplaceOrderDto) {
@@ -467,6 +484,36 @@ export class MarketplaceService {
       .replace(/'/g, '&#39;');
   }
 
+  private shopResource(shop: any) {
+    if (!shop) {
+      return shop;
+    }
+
+    return {
+      ...shop,
+      workingDays: this.workingDaysResource(shop.workingDays),
+    };
+  }
+
+  private workingDaysResource(value: unknown): string[] | undefined {
+    if (Array.isArray(value)) {
+      return value.filter((day): day is string => typeof day === 'string' && Boolean(day.trim()));
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((day): day is string => typeof day === 'string' && Boolean(day.trim()))
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private geoQuery(query: {
     latitude?: number;
     longitude?: number;
@@ -532,11 +579,20 @@ export class MarketplaceService {
       city: true,
       area: true,
       country: true,
+      province: true,
       phone: true,
       type: true,
       logo: true,
       coverImage: true,
       description: true,
+      currency: true,
+      taxPercentage: true,
+      timezone: true,
+      openingTime: true,
+      closingTime: true,
+      open24Hours: true,
+      workingDays: true,
+      receiptSize: true,
       latitude: true,
       longitude: true,
       onlineSellingEnabled: true,

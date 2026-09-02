@@ -28,7 +28,7 @@ export class ShopsService {
     await this.ensureUniqueShopFields({ slug, email: dto.email, phone: dto.phone });
     const shop = await this.prisma.shop.create({
       data: {
-        ...dto,
+        ...this.shopWriteData(dto),
         slug,
         address: dto.address?.trim() || '',
         city: dto.city?.trim() || '',
@@ -77,7 +77,7 @@ export class ShopsService {
     const shop = await this.prisma.shop.update({
       where: { id },
       data: {
-        ...dto,
+        ...this.shopWriteData(dto),
         slug,
         address: dto.address?.trim(),
         city: dto.city?.trim(),
@@ -237,6 +237,17 @@ export class ShopsService {
 
   private slug(value: string) {
     return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+
+  private shopWriteData<T extends CreateShopDto | UpdateShopDto>(
+    dto: T,
+  ): Omit<T, 'workingDays'> & { workingDays?: string } {
+    const { workingDays, ...data } = dto;
+
+    return {
+      ...data,
+      workingDays: Array.isArray(workingDays) ? JSON.stringify(workingDays) : workingDays,
+    } as Omit<T, 'workingDays'> & { workingDays?: string };
   }
 
   private validateActivePayload(dto: CreateShopDto) {
