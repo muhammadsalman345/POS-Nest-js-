@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthUser } from '../common/types/auth-user.type';
+import { ReportsDashboardQueryDto } from './dto/reports-dashboard-query.dto';
 import { ReportsService } from './reports.service';
 
 @ApiTags('Reports')
@@ -35,6 +36,11 @@ export class ReportsController {
 @Controller('reports')
 export class RootReportsController {
   constructor(private readonly reports: ReportsService) {}
+
+  @Get('dashboard')
+  dashboard(@Query() query: ReportsDashboardQueryDto, @CurrentUser() user: AuthUser) {
+    return this.reports.dashboardOverview(query, user);
+  }
 
   @Get('sales')
   sales(@Query('shop_id') shopId: string, @CurrentUser() user: AuthUser) { return this.reports.monthlySales(+shopId, user); }
